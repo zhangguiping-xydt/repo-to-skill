@@ -2,7 +2,23 @@
 
 repo-to-skill is a local-first Python CLI for turning a local code repository into a reviewable, installable, and verifiable AI coding agent skill pack.
 
+![repo-to-skill visual workflow](docs/assets/repo-to-skill-overview.svg)
+
 The project is built for local scanning: it reads files from a repository on your machine, writes analysis artifacts and generated skill output to directories you choose, and does not upload source code. It does not require a remote database. It also does not use a vector database by default; a vector index may be explored later as an optional extension, but it is not an MVP dependency.
+
+## What it generates
+
+repo-to-skill reads a target repository without modifying it, then generates a separate skill package that an AI coding agent can review and import:
+
+- `SKILL.md` for the human-readable project briefing.
+- `manifest.yaml` for package metadata and safety boundaries.
+- `references/project-map.md` for modules, representative paths, relationships, task entry points, and validation guidance.
+- `references/capability-graph.md`, `references/skill-spec.md`, and `references/confidence-report.md` for evidence-backed repository capabilities.
+- `scripts/inspect_repo.py` as a read-only helper that does not spawn shell commands.
+
+## Visual demo assets
+
+The launch video sources live in [`designs/repo-to-skill-launch`](designs/repo-to-skill-launch/). Large rendered videos are better attached to a GitHub Release or GitHub-hosted media asset instead of committed directly into source history.
 
 ## Installation
 
