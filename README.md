@@ -18,7 +18,10 @@ repo-to-skill reads a target repository without modifying it, then generates a s
 
 ## Visual demo assets
 
-The launch video sources live in [`designs/repo-to-skill-launch`](designs/repo-to-skill-launch/). Large rendered videos are better attached to a GitHub Release or GitHub-hosted media asset instead of committed directly into source history.
+The launch video sources live in [`designs/repo-to-skill-launch`](designs/repo-to-skill-launch/). Large rendered videos are attached to GitHub Releases instead of committed directly into source history.
+
+- [Watch the launch video](https://github.com/zhangguiping-xydt/repo-to-skill/releases/download/v0.1.0/repo-to-skill-launch.mp4)
+- [Open the release page](https://github.com/zhangguiping-xydt/repo-to-skill/releases/tag/v0.1.0)
 
 ## Installation
 
