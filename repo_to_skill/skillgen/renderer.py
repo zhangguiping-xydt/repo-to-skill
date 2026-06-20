@@ -19,12 +19,13 @@ _ABSOLUTE_PATH_PATTERNS = (
 )
 _CAPABILITY_BULLET_PATTERN = re.compile(r"(?m)^- ([a-z][a-z0-9_]*):")
 _CAPABILITY_LABELS = {
+    "architecture_modules": "architecture modules",
     "cli": "CLI",
     "configuration": "configuration",
     "database": "database scripts",
     "documentation": "documentation",
     "dotnet_project": ".NET project",
-    "enterprise_modules": "enterprise modules",
+    "enterprise_modules": "architecture modules",
     "entrypoint": "entrypoints",
     "package_manager": "package manager",
     "release_scripts": "release scripts",
@@ -96,6 +97,7 @@ def _summarize_list(values: list[str], limit: int = 40) -> dict[str, Any]:
 
 _FALLBACK_SIGNAL_PRIORITY = [
     "aspnet-web",
+    "application-source",
     "database-scripts",
     "dotnet-project",
     "release-automation",
@@ -117,6 +119,8 @@ def _fallback_module_signals(name: str, paths: list[str]) -> list[str]:
         raw.add("database-scripts")
     if suffixes & {".sln", ".csproj"}:
         raw.add("dotnet-project")
+    if paths and sum(1 for path in paths if Path(path).suffix.lower() not in {".md", ".rst", ".toml", ".yaml", ".yml", ".json", ".xml", ".config", ".resx", ".csproj", ".sln"}) >= max(1, len(paths) // 2):
+        raw.add("application-source")
     if lowered_name in {"build", "deploy", "release"} or suffixes & {".bat", ".cmd"}:
         raw.add("release-automation")
     if "pipeline" in lowered_name or any("pipeline" in path for path in lowered_paths):
@@ -141,10 +145,12 @@ def _fallback_module_summary(name: str, signals: list[str]) -> str:
         return "Client application module inferred from module naming and file-type signals."
     if "aspnet-web" in signals:
         return "ASP.NET web application surface with pages, handlers, services, and configuration."
+    if "application-source" in signals:
+        return "Application source module inferred from dominant source files."
     if "database-scripts" in signals:
         return "Database schema and script layer with SQL objects or migration-like assets."
     if "business-module" in signals:
-        return "Enterprise application or business capability module inferred from module naming."
+        return "Application or business capability module inferred from module naming."
     return ""
 
 

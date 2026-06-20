@@ -4,12 +4,13 @@ from repo_to_skill.models import CapabilityEvidence, ProjectProfile, Verificatio
 
 
 _CAPABILITY_LABELS = {
+    "architecture_modules": "architecture modules",
     "cli": "CLI",
     "configuration": "configuration",
     "database": "database scripts",
     "documentation": "documentation",
     "dotnet_project": ".NET project",
-    "enterprise_modules": "enterprise modules",
+    "enterprise_modules": "architecture modules",
     "entrypoint": "entrypoints",
     "package_manager": "package manager",
     "release_scripts": "release scripts",

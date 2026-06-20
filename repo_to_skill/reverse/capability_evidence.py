@@ -6,6 +6,7 @@ from repo_to_skill.models import CapabilityEvidence, Claim, Evidence, ProjectPro
 
 _SOURCE_LIMIT = 8
 _ARCHITECTURE_MODULE_SIGNALS = {
+    "application-source",
     "aspnet-web",
     "database-scripts",
     "server-service",
@@ -131,9 +132,9 @@ def build_capability_evidence(profile: ProjectProfile, scan: ScanResult) -> Capa
     if architecture_modules:
         evidence.append(
             Evidence(
-                name="enterprise_modules",
+                name="architecture_modules",
                 kind="architecture",
-                summary="Multiple top-level application or business modules are visible in the repository layout.",
+                summary="Multiple top-level source, application, or operational modules are visible in the repository layout.",
                 sources=architecture_modules,
                 confidence=0.8,
             )

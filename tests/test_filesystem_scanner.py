@@ -63,9 +63,25 @@ def test_scan_repository_skips_generated_graph_cache(tmp_path) -> None:
     artifacts = repo / "Build" / "Artifacts"
     artifacts.mkdir(parents=True)
     (artifacts / "bundle.txt").write_text("generated\n", encoding="utf-8")
+    target = repo / "target" / "classes"
+    target.mkdir(parents=True)
+    (target / "application.yml").write_text("generated: true\n", encoding="utf-8")
+    tmp = repo / ".tmp"
+    tmp.mkdir()
+    (tmp / "cache.json").write_text('{"cache": true}\n', encoding="utf-8")
+    bundles = repo / "bundles"
+    bundles.mkdir()
+    (bundles / "index.android.bundle").write_text("generated bundle\n", encoding="utf-8")
+    agent_state = repo / ".claude"
+    agent_state.mkdir()
+    (agent_state / "scheduled_tasks.json").write_text("[]\n", encoding="utf-8")
 
     result = scan_repository(repo)
 
     assert [record.path for record in result.files] == ["Program.cs"]
     assert "graphify-out/cache/ast/node.json" in result.skipped
     assert "Build/Artifacts/bundle.txt" in result.skipped
+    assert "target/classes/application.yml" in result.skipped
+    assert ".tmp/cache.json" in result.skipped
+    assert "bundles/index.android.bundle" in result.skipped
+    assert ".claude/scheduled_tasks.json" in result.skipped

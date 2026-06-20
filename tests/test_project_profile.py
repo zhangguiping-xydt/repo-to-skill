@@ -88,12 +88,13 @@ def test_build_project_profile_prefers_source_language_over_generated_json_cache
     assert profile.primary_language == "C#"
     assert profile.languages[:3] == ["C#", "ASP.NET", "SQL"]
     assert not any(path.startswith("graphify-out/") for path in profile.configuration_files + profile.source_files)
-    assert {"dotnet_project", "web_app", "database", "enterprise_modules"}.issubset(evidence_names)
+    assert {"dotnet_project", "web_app", "database", "architecture_modules"}.issubset(evidence_names)
     assert "ASP.NET web application surface" in modules["Web/"].summary
     assert "aspnet-web" in modules["Web/"].signals
     assert "Database schema" in modules["DB/"].summary
     assert "database-scripts" in modules["DB/"].signals
-    assert modules["Attendance/"].summary == "Repository module inferred from top-level layout and file-type signals."
+    assert modules["Attendance/"].summary == "Application source module inferred from dominant source files."
+    assert "application-source" in modules["Attendance/"].signals
     assert "attendance-domain" not in modules["Attendance/"].signals
     assert "server-service" in modules["RightDataServer/"].signals
     assert "release-automation" in modules["Build/"].signals
@@ -123,6 +124,52 @@ def test_build_project_profile_prefers_source_language_over_generated_json_cache
     )
     assert "install" not in validation_text.lower()
     assert "http" not in validation_text.lower()
+
+
+def test_build_project_profile_uses_dominant_content_language_without_source_files(tmp_path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    docs = repo / "docs"
+    docs.mkdir()
+    for index in range(3):
+        (docs / f"topic-{index}.md").write_text("# Topic\n", encoding="utf-8")
+    (repo / "metadata.json").write_text("{}\n", encoding="utf-8")
+
+    scan = scan_repository(repo)
+    profile = build_project_profile(scan, repo)
+
+    assert profile.primary_language == "Markdown"
+    assert profile.languages[0] == "Markdown"
+
+
+def test_build_project_profile_keeps_source_dominant_modules_actionable(tmp_path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    src = repo / "src"
+    src.mkdir()
+    (src / "App.ts").write_text("export const app = true;\n", encoding="utf-8")
+    state = src / "state"
+    state.mkdir()
+    (state / "schema.sql").write_text("create table sessions (id int);\n", encoding="utf-8")
+    static = src / "static"
+    static.mkdir()
+    (static / "legacy.bat").write_text("echo legacy\n", encoding="utf-8")
+    pipeline = src / "pipeline"
+    pipeline.mkdir()
+    (pipeline / "workflow.ts").write_text("export const workflow = true;\n", encoding="utf-8")
+
+    scan = scan_repository(repo)
+    profile = build_project_profile(scan, repo)
+
+    modules = {module.name: module for module in profile.module_summaries}
+    assert modules["src/"].summary == "Application source module inferred from dominant source files."
+    assert "application-source" in modules["src/"].signals
+    assert "database-scripts" not in modules["src/"].signals
+    assert "release-automation" not in modules["src/"].signals
+    assert "pipeline-config" not in modules["src/"].signals
+    guide_tasks = {item.task: item for item in profile.task_entry_guide}
+    assert "Change application behavior" in guide_tasks
+    assert "src/" in guide_tasks["Change application behavior"].start_with
 
 
 def test_build_project_profile_links_test_module_names_to_source_modules(tmp_path) -> None:

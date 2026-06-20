@@ -29,7 +29,10 @@ def _source_language_counts(scan: ScanResult) -> Counter[str]:
 def _primary_language(scan: ScanResult) -> str:
     source_counts = _source_language_counts(scan)
     if source_counts:
-        return sorted(source_counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+        return sorted(source_counts.items(), key=lambda item: (-item[1], _LANGUAGE_PRIORITY.get(item[0], 99), item[0]))[0][0]
+    content_counts = Counter(record.language for record in scan.files if record.language != "Unknown")
+    if content_counts:
+        return sorted(content_counts.items(), key=lambda item: (-item[1], _LANGUAGE_PRIORITY.get(item[0], 99), item[0]))[0][0]
     return scan.languages[0] if scan.languages else "Unknown"
 
 
@@ -85,8 +88,16 @@ _REPRESENTATIVE_SUFFIX_PRIORITY = {
     ".pas": 6,
     ".dfm": 6,
 }
+_SOURCE_MODULE_NAMES = {"app", "apps", "lib", "libs", "package", "packages", "source", "src"}
+_DATABASE_MODULE_NAMES = {"data", "database", "databases", "db", "sql"}
+_DATABASE_PATH_PARTS = {"database", "databases", "db", "migration", "migrations", "schema", "schemas", "sql"}
+_AUTOMATION_MODULE_NAMES = {"build", "ci", "cd", "deploy", "pipeline", "pipelines", "release", "scripts"}
+_AUTOMATION_PATH_PARTS = {"build", "ci", "cd", "deploy", "pipeline", "pipelines", "release", "scripts"}
+_DATABASE_SUFFIXES = {".sql", ".prc", ".vw", ".pck", ".seq"}
+_AUTOMATION_SUFFIXES = {".bat", ".cmd"}
 _SIGNAL_PRIORITY = [
     "aspnet-web",
+    "application-source",
     "database-scripts",
     "dotnet-project",
     "release-automation",
@@ -170,20 +181,36 @@ def _module_signals(name: str, records: list, role_counts: Counter[str]) -> list
     base_name = name.rstrip("/")
     lowered_name = base_name.lower()
     tokens = _name_tokens(lowered_name)
-    lowered_paths = [record.path.lower() for record in records]
+    path_parts = [set(Path(record.path.lower()).parts) for record in records]
     suffixes = {Path(record.path).suffix.lower() for record in records}
     languages = {record.language for record in records}
+    source_count = role_counts["source"]
+    non_source_count = role_counts["configuration"] + role_counts["documentation"] + role_counts["test"]
+    source_dominant = (
+        source_count > 0
+        and lowered_name not in _DATABASE_MODULE_NAMES
+        and lowered_name not in _AUTOMATION_MODULE_NAMES
+        and (lowered_name in _SOURCE_MODULE_NAMES or source_count >= max(1, non_source_count))
+    )
+    database_file_count = sum(1 for record in records if Path(record.path).suffix.lower() in _DATABASE_SUFFIXES)
+    database_path_count = sum(1 for parts in path_parts if parts & _DATABASE_PATH_PARTS)
+    database_script_ratio = database_file_count / max(source_count, 1)
+    database_script_dense = database_file_count >= 3 and database_script_ratio >= 0.05
+    database_path_dense = database_file_count >= 1 and database_path_count >= 3 and database_script_ratio >= 0.05
+    automation_file_count = sum(1 for record in records if Path(record.path).suffix.lower() in _AUTOMATION_SUFFIXES)
     raw: set[str] = set()
 
     if "ASP.NET" in languages or suffixes & {".aspx", ".asmx", ".ashx", ".ascx"} or lowered_name == "web":
         raw.add("aspnet-web")
-    if "SQL" in languages or suffixes & {".sql", ".prc", ".vw", ".pck", ".seq"} or lowered_name in {"db", "database", "sql"}:
+    if source_dominant:
+        raw.add("application-source")
+    if lowered_name in _DATABASE_MODULE_NAMES or database_script_dense or database_path_dense:
         raw.add("database-scripts")
     if ".sln" in suffixes or ".csproj" in suffixes or ".NET project" in languages:
         raw.add("dotnet-project")
-    if suffixes & {".bat", ".cmd"} or lowered_name in {"build", "deploy", "release", "scripts"}:
+    if lowered_name in _AUTOMATION_MODULE_NAMES or (tokens & _AUTOMATION_PATH_PARTS) or (automation_file_count >= 2 and not source_dominant):
         raw.add("release-automation")
-    if lowered_name in {"pipeline", "pipelines", "ci", "cd"} or any("pipeline" in path for path in lowered_paths):
+    if lowered_name in {"pipeline", "pipelines", "ci", "cd"} or tokens & {"pipeline", "pipelines", "ci", "cd"}:
         raw.add("pipeline-config")
     if {"server", "service", "gateway"} & tokens or lowered_name.endswith("server"):
         raw.add("server-service")
@@ -212,12 +239,14 @@ def _module_summary_text(name: str, signals: list[str]) -> str:
         return "Shared library or common framework module used across repository capabilities."
     if "aspnet-web" in signals:
         return "ASP.NET web application surface with pages, handlers, services, and configuration."
+    if "application-source" in signals:
+        return "Application source module inferred from dominant source files."
     if "database-scripts" in signals:
         return "Database schema and script layer with SQL objects or migration-like assets."
     if "release-automation" in signals or "pipeline-config" in signals:
         return "Build, release, or deployment automation module."
     if "business-module" in signals:
-        return "Enterprise application or business capability module inferred from module naming."
+        return "Application or business capability module inferred from module naming."
     if lowered_name in {"center", "core"}:
         return "Core coordination module inferred from top-level layout and project files."
     return "Repository module inferred from top-level layout and file-type signals."
@@ -282,7 +311,7 @@ def _relationship_name_tokens(module: ModuleSummary) -> set[str]:
 
 def _build_module_relationships(modules: list[ModuleSummary]) -> list[ModuleRelationship]:
     automation_modules = [module for module in modules if _is_automation_owner(module)]
-    app_modules = [module for module in modules if _has_any_signal(module, {"aspnet-web", "client-app", "server-service", "business-module"})]
+    app_modules = [module for module in modules if _has_any_signal(module, {"application-source", "aspnet-web", "client-app", "server-service", "business-module"})]
     database_modules = [module for module in modules if "database-scripts" in module.signals]
     shared_modules = [module for module in modules if "shared-library" in module.signals]
     relationships: dict[tuple[str, str, str], ModuleRelationship] = {}
@@ -353,7 +382,7 @@ def _module_names(modules: list[ModuleSummary], signals: set[str], limit: int = 
 
 
 def _build_task_entry_guide(modules: list[ModuleSummary], relationships: list[ModuleRelationship]) -> list[TaskGuideItem]:
-    app_modules = _module_names(modules, {"aspnet-web", "client-app", "server-service", "business-module"})
+    app_modules = _module_names(modules, {"application-source", "aspnet-web", "client-app", "server-service", "business-module"})
     database_modules = sorted(
         _module_names(modules, {"database-scripts"}, 4), key=lambda name: (0 if name.rstrip("/").lower() in {"db", "database", "sql"} else 1, name)
     )
@@ -455,7 +484,7 @@ def _build_validation_guide(test_commands: list[str], run_commands: list[str], m
 
     review_paths = _module_paths(
         modules,
-        {"aspnet-web", "client-app", "server-service", "database-scripts", "release-automation", "pipeline-config", "shared-library"},
+        {"application-source", "aspnet-web", "client-app", "server-service", "database-scripts", "release-automation", "pipeline-config", "shared-library"},
     )
     if review_paths:
         guides.append(

@@ -164,7 +164,8 @@ def test_generated_enterprise_skill_highlights_real_capabilities_and_summarizes_
     assert "`dotnet_project` — .NET project" in skill
     assert "`web_app` — web application" in skill
     assert "`database` — database scripts" in skill
-    assert "`enterprise_modules` — enterprise modules" in skill
+    assert "`architecture_modules` — architecture modules" in skill
+    assert "enterprise modules" not in combined
     assert "`release_scripts` — release scripts" in skill
     assert "## Module intelligence" in project_map
     assert "DB/ — Database schema" in project_map
