@@ -1,0 +1,75 @@
+# {{ project_name }} repository skill
+
+Use this skill to understand the local repository named `{{ project_name }}` from precomputed repo-to-skill analysis artifacts.
+
+## At a glance
+
+- Purpose: {{ description }}
+- Primary language: {{ profile.primary_language | default("unknown") }}
+{% if project_map.languages %}- Languages: {{ project_map.languages | join(", ") }}
+{% endif %}{% if project_map.ecosystems %}- Ecosystems: {{ project_map.ecosystems | join(", ") }}
+{% endif %}{% if project_map.entrypoints %}- Entrypoints: {{ project_map.entrypoints | join("; ") }}
+{% endif %}{% if project_map.test_commands %}- Test commands: {{ project_map.test_commands | join("; ") }}
+{% endif %}{% if key_paths %}- Key paths: {{ key_paths | join(", ") }}
+{% endif %}- Verification status: {{ verification_report.status | default("unknown") }}
+
+## Repository intelligence
+
+{% if project_map.modules %}Important top-level modules from the analyzed checkout:
+
+{% for module in project_map.modules %}- {{ module.name }} — {{ module.summary if module.summary else module.total ~ " files sampled (source " ~ module.source ~ ", config " ~ module.configuration ~ ", docs " ~ module.documentation ~ ", tests " ~ module.test ~ ")" }}
+{% if module.signals %}  - Signals: {{ module.signals | join(", ") }}
+{% endif %}{% if module.representative_paths %}  - Representative paths: {{ module.representative_paths | join("; ") }}
+{% endif %}{% endfor %}{% else %}- No multi-file top-level modules were detected.
+{% endif %}
+The generated references summarize representative files instead of listing every scanned path. Generated caches, build outputs, dependency folders, and local analysis artifacts are excluded when recognized by the scanner.
+
+## Repository reasoning
+
+{% if project_map.module_relationships %}Likely module relationships:
+
+{% for relationship in project_map.module_relationships[:8] %}- {{ relationship.source }} -> {{ relationship.target }} — {{ relationship.relation }}
+{% endfor %}{% else %}- No deterministic module relationships were inferred from the analysis artifacts.
+{% endif %}
+{% if project_map.task_entry_guide %}
+
+Task entry guide:
+
+{% for guide in project_map.task_entry_guide %}- {{ guide.task }}: start with {{ guide.start_with | join(", ") }}{{ "; then check " ~ (guide.then_check | join(", ")) if guide.then_check else "" }}
+{% endfor %}{% endif %}
+{% if project_map.validation_guide %}
+
+Validation guide:
+
+{% for guide in project_map.validation_guide %}- {{ guide.scope }}{{ ": " ~ (guide.commands | join("; ")) if guide.commands else (": review " ~ (guide.paths | join("; ")) if guide.paths else "") }}
+{% endfor %}{% endif %}
+
+## How to use this skill with an AI coding agent
+
+1. Start here for the repository purpose, primary language, important modules, and capability list.
+2. Read `references/project-map.md` when you need the module/file map and representative paths.
+3. Read `references/capability-graph.md` and `references/skill-spec.md` when you need the inferred repository capabilities.
+4. Read `references/confidence-report.md` when you need evidence strength and review notes.
+5. Optionally run the helper against a local checkout:
+
+```bash
+python scripts/inspect_repo.py /path/to/local/repository
+```
+
+The helper prints a compact overview only. It reads directory entries and small text metadata, and it does not write files.
+
+## Safety boundaries
+
+- Read-only: do not modify the target repository.
+- No network access: do not upload source code or call remote services.
+- No dependency installation: do not run package-manager install commands.
+- Generated helpers do not spawn shell commands.
+- No runtime service registration or long-running server integration.
+
+## Known capabilities
+
+{% if capability_items %}{% for capability in capability_items %}
+- `{{ capability.id }}` — {{ capability.label }}
+{% endfor %}{% else %}
+- No specific capability claims were present in the analysis artifacts.
+{% endif %}

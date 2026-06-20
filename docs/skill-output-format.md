@@ -1,0 +1,44 @@
+# Skill output format
+
+`repo-to-skill generate` converts local analysis artifacts into an AI coding agent skill pack directory. The output is intended to be reviewable before installation.
+
+## Required files
+
+A generated skill contains:
+
+- `manifest.yaml`
+- `SKILL.md`
+- `scripts/inspect_repo.py`
+- `scripts/common.py`
+- `references/project-map.md`
+- `references/capability-graph.md`
+- `references/skill-spec.md`
+- `references/confidence-report.md`
+
+## Source artifacts
+
+The skill output is derived from the artifact chain produced by local scanning:
+
+- scan data
+- project profile
+- capability evidence
+- capability graph
+- skill spec
+- verification report
+- confidence report
+
+## Safety metadata
+
+The manifest records local-first safety boundaries. Generated helper scripts are read-only and must preserve no network, no dependency installation, and generated helpers do not spawn shell commands. They are designed for inspection, not mutation.
+
+## Output placement
+
+repo-to-skill does not modify the target repository. The analyze/generate output must be outside the target repository. Use a sibling work directory, a `.runs` directory outside the input project, or another reviewable local output path.
+
+## Storage and runtime boundary
+
+The output format does not require a remote database and does not use a vector database by default. It also does not register with CapabilityRegistry/FastAPI/runtime hot registration and is not multi-agent-dev external_skills hot loading.
+
+## Adapter boundary
+
+The generated skill pack is the canonical output. Adapter documents can map it into different AI coding agent environments, but adapters must preserve the same local-first safety boundaries and validation requirements.

@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+from pathlib import Path
+
+from common import TEXT_METADATA_FILES, iter_visible_files, relative_display, resolve_repo
+
+
+EXTENSION_LANGUAGE_HINTS = {
+    ".py": "Python",
+    ".js": "JavaScript",
+    ".ts": "TypeScript",
+    ".tsx": "TypeScript",
+    ".go": "Go",
+    ".rs": "Rust",
+    ".java": "Java",
+    ".toml": "TOML",
+    ".yaml": "YAML",
+    ".yml": "YAML",
+    ".json": "JSON",
+    ".md": "Markdown",
+}
+
+
+def language_for(path: Path) -> str:
+    return EXTENSION_LANGUAGE_HINTS.get(path.suffix.lower(), "Other")
+
+
+def inspect(repo_argument: str | None) -> str:
+    repo = resolve_repo(repo_argument)
+    files = iter_visible_files(repo)
+    languages = Counter(language_for(path) for path in files)
+    metadata = [name for name in TEXT_METADATA_FILES if (repo / name).is_file()]
+    source_examples = [relative_display(repo, path) for path in files[:20]]
+
+    lines = [
+        f"Repository: {repo.name}",
+        f"Visible files sampled: {len(files)}",
+        "Languages:",
+    ]
+    if languages:
+        lines.extend(f"- {name}: {count}" for name, count in sorted(languages.items()))
+    else:
+        lines.append("- none detected")
+
+    lines.append("Metadata files:")
+    if metadata:
+        lines.extend(f"- {name}" for name in metadata)
+    else:
+        lines.append("- none detected")
+
+    lines.append("Sample files:")
+    if source_examples:
+        lines.extend(f"- {path}" for path in source_examples)
+    else:
+        lines.append("- none detected")
+    return "\n".join(lines)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Read-only local repository overview.")
+    parser.add_argument("repo", nargs="?", help="Local repository path; defaults to the current directory.")
+    args = parser.parse_args()
+    print(inspect(args.repo))
+
+
+if __name__ == "__main__":
+    main()

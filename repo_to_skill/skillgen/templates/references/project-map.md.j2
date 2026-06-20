@@ -1,0 +1,140 @@
+# Project map: {{ project_name }}
+
+Description: {{ description }}
+
+Primary language: {{ profile.primary_language | default("Unknown") }}
+
+## Languages
+
+{% if project_map.languages %}{% for item in project_map.languages %}
+- {{ item }}
+{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Ecosystems
+
+{% if project_map.ecosystems %}{% for item in project_map.ecosystems %}
+- {{ item }}
+{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Package managers
+
+{% if project_map.package_managers %}{% for item in project_map.package_managers %}
+- {{ item }}
+{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Top-level modules
+
+{% if project_map.modules %}{% for module in project_map.modules %}
+- {{ module.name }} — {{ module.total }} files (source {{ module.source }}, config {{ module.configuration }}, docs {{ module.documentation }}, tests {{ module.test }})
+{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Module intelligence
+
+{% if project_map.modules %}{% for module in project_map.modules %}
+- {{ module.name }} — {{ module.summary if module.summary else module.total ~ " files inferred from top-level layout." }}
+{% if module.languages %}  - Languages: {{ module.languages | join(", ") }}
+{% endif %}{% if module.signals %}  - Signals: {{ module.signals | join(", ") }}
+{% endif %}  - Counts: source {{ module.source }}, config {{ module.configuration }}, docs {{ module.documentation }}, tests {{ module.test }}
+{% if module.representative_paths %}  - Representative paths:
+{% for path in module.representative_paths %}    - {{ path }}
+{% endfor %}{% endif %}{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Module relationships
+
+{% if project_map.module_relationships %}{% for relationship in project_map.module_relationships %}
+- {{ relationship.source }} -> {{ relationship.target }} — {{ relationship.relation }}
+{% if relationship.reason %}  - Reason: {{ relationship.reason }}
+{% endif %}{% if relationship.evidence %}  - Evidence:
+{% for path in relationship.evidence %}    - {{ path }}
+{% endfor %}{% endif %}{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Task entry guide
+
+{% if project_map.task_entry_guide %}{% for guide in project_map.task_entry_guide %}
+- {{ guide.task }}
+{% if guide.start_with %}  - Start with: {{ guide.start_with | join(", ") }}
+{% endif %}{% if guide.then_check %}  - Then check: {{ guide.then_check | join(", ") }}
+{% endif %}{% if guide.rationale %}  - Rationale: {{ guide.rationale }}
+{% endif %}{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Validation guide
+
+{% if project_map.validation_guide %}{% for guide in project_map.validation_guide %}
+- {{ guide.scope }}
+{% if guide.commands %}  - Commands: {{ guide.commands | join("; ") }}
+{% endif %}{% if guide.paths %}  - Paths:
+{% for path in guide.paths %}    - {{ path }}
+{% endfor %}{% endif %}{% if guide.notes %}  - Notes: {{ guide.notes | join("; ") }}
+{% endif %}{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Entrypoints
+
+{% if project_map.entrypoints %}{% for item in project_map.entrypoints %}
+- {{ item }}
+{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Configuration files
+
+{% if project_map.configuration_files.paths %}{% for item in project_map.configuration_files.paths %}
+- {{ item }}
+{% endfor %}{% if project_map.configuration_files.omitted %}
+- ... {{ project_map.configuration_files.omitted }} omitted
+{% endif %}{% else %}
+- none detected
+{% endif %}
+
+## Documentation files
+
+{% if project_map.documentation_files.paths %}{% for item in project_map.documentation_files.paths %}
+- {{ item }}
+{% endfor %}{% if project_map.documentation_files.omitted %}
+- ... {{ project_map.documentation_files.omitted }} omitted
+{% endif %}{% else %}
+- none detected
+{% endif %}
+
+## Source files
+
+{% if project_map.source_files.paths %}{% for item in project_map.source_files.paths %}
+- {{ item }}
+{% endfor %}{% if project_map.source_files.omitted %}
+- ... {{ project_map.source_files.omitted }} omitted
+{% endif %}{% else %}
+- none detected
+{% endif %}
+
+## Test files
+
+{% if project_map.test_files.paths %}{% for item in project_map.test_files.paths %}
+- {{ item }}
+{% endfor %}{% if project_map.test_files.omitted %}
+- ... {{ project_map.test_files.omitted }} omitted
+{% endif %}{% else %}
+- none detected
+{% endif %}
+
+## Suggested commands from analysis
+
+{% set commands = project_map.test_commands + project_map.run_commands %}{% if commands %}{% for item in commands %}
+- {{ item }}
+{% endfor %}{% else %}
+- none detected
+{% endif %}

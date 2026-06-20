@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tiny-python-app"
+version = "0.1.0"
+description = "A tiny Python app used as a repo-to-skill example input."
+requires-python = ">=3.11"
+
+[project.scripts]
+tiny-app = "tiny_app.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tiny_app"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

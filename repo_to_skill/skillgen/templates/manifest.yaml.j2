@@ -1,0 +1,26 @@
+name: {{ skill_name }}
+description: {{ description | tojson }}
+version: "0.1.0"
+source_project:
+  name: {{ project_name | tojson }}
+  primary_language: {{ profile.primary_language | default("Unknown") | tojson }}
+  ecosystems:
+{% if profile.ecosystems %}{% for ecosystem in profile.ecosystems %}
+    - {{ ecosystem | tojson }}
+{% endfor %}{% else %}
+    []
+{% endif %}
+capabilities:
+{% if capabilities %}{% for capability in capabilities %}
+  - {{ capability | tojson }}
+{% endfor %}{% else %}
+  []
+{% endif %}
+generated_by:
+  tool: repo-to-skill
+  mode: local-first
+safety:
+  read_only: true
+  network: disabled
+  dependency_install: disabled
+  target_repository_writes: disabled

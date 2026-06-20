@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>repo-to-skill Launch Video</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root {
+      --ink-950: #03080d;
+      --ink-900: #071117;
+      --ink-850: #091720;
+      --ink-800: #0b1b24;
+      --panel: rgba(12, 30, 39, 0.78);
+      --panel-strong: rgba(18, 42, 54, 0.92);
+      --cyan: #6ee7ff;
+      --cyan-soft: rgba(110, 231, 255, 0.18);
+      --green: #8df7b2;
+      --amber: #ffd37a;
+      --red: #ff7f8f;
+      --text: #f7fbff;
+      --muted: #9db3bf;
+      --dim: #59707d;
+      --line: rgba(117, 231, 255, 0.28);
+      --shadow-deep: 0 40px 120px rgba(0, 0, 0, 0.55);
+      color-scheme: dark;
+      font-synthesis: none;
+      text-rendering: geometricPrecision;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-width: 1920px;
+      min-height: 1080px;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 22% 18%, rgba(110, 231, 255, 0.16), transparent 31%),
+        radial-gradient(circle at 82% 82%, rgba(141, 247, 178, 0.10), transparent 34%),
+        linear-gradient(145deg, var(--ink-950) 0%, var(--ink-900) 48%, var(--ink-800) 100%);
+      color: var(--text);
+      font-family: "Aptos", "IBM Plex Sans", "Segoe UI", sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(110, 231, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(110, 231, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(135deg, transparent 0 48%, rgba(255, 255, 255, 0.025) 49% 51%, transparent 52% 100%);
+      background-size: 72px 72px, 72px 72px, 22px 22px;
+      mask-image: radial-gradient(circle at center, black 0 74%, transparent 100%);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2147483647;
+      opacity: 0.18;
+      background:
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 4px),
+        radial-gradient(circle at center, transparent 0 58%, rgba(0, 0, 0, 0.34) 100%);
+      mix-blend-mode: screen;
+    }
+
+    #root {
+      position: relative;
+      z-index: 1;
+      width: 1920px;
+      height: 1080px;
+      margin: 0 auto;
+      overflow: hidden;
+      background: var(--ink-900);
+      box-shadow: var(--shadow-deep);
+      isolation: isolate;
+      transform-origin: top center;
+    }
+
+    #root > * {
+      width: 1920px;
+      height: 1080px;
+    }
+
+    #root canvas,
+    #root svg,
+    #root video {
+      display: block;
+    }
+
+    #root svg {
+      shape-rendering: geometricPrecision;
+    }
+
+    #root h1,
+    #root h2,
+    #root h3,
+    #root p {
+      text-wrap: balance;
+    }
+
+    #root [style*="JetBrains Mono"],
+    #root code,
+    #root pre {
+      font-variant-ligatures: contextual;
+      font-feature-settings: "liga" 1, "calt" 1, "ss01" 1;
+    }
+
+    #root [style*="border-radius"] {
+      backdrop-filter: blur(20px) saturate(132%);
+    }
+
+    #root [style*="CLAUDE CODE SKILL"],
+    #root [style*="verification_report.json"],
+    #root [style*="repo-to-skill"] {
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .video-frame,
+    .developer-stage,
+    .scene-shell,
+    .scene-layer,
+    .hud-panel,
+    .terminal-window,
+    .artifact-card,
+    .skill-card,
+    .safety-badge,
+    .graph-node,
+    .pass-stamp,
+    .scene-label {
+      position: relative;
+      color: var(--text);
+    }
+
+    .developer-stage,
+    .scene-shell,
+    .scene-layer {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+    }
+
+    .hud-panel,
+    .terminal-window,
+    .artifact-card,
+    .skill-card {
+      background: linear-gradient(180deg, rgba(20, 49, 62, 0.96), rgba(8, 23, 32, 0.96));
+      border: 1px solid var(--line);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35), 0 0 40px rgba(110, 231, 255, 0.10);
+    }
+
+    .scene-label,
+    .terminal-window,
+    .graph-node,
+    .pass-stamp {
+      font-family: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Menlo, monospace;
+    }
+
+    .safety-badge {
+      background: rgba(141, 247, 178, 0.10);
+      border: 1px solid rgba(141, 247, 178, 0.34);
+    }
+
+    .pass-stamp {
+      color: var(--green);
+      border-color: rgba(141, 247, 178, 0.92);
+      text-shadow: 0 0 24px rgba(141, 247, 178, 0.36);
+    }
+
+    @media (max-aspect-ratio: 16 / 9) {
+      #root {
+        transform: scale(calc(100vw / 1920));
+      }
+    }
+
+    @media (min-aspect-ratio: 16 / 9) {
+      #root {
+        transform: scale(calc(100vh / 1080));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="animations.jsx"></script>
+  <script type="text/babel" src="video-data.jsx"></script>
+  <script type="text/babel" src="video-scenes.jsx"></script>
+</body>
+</html>

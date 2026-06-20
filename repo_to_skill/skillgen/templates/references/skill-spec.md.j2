@@ -1,0 +1,31 @@
+# Skill spec: {{ project_name }}
+
+Description: {{ skill_spec.description | default(description) }}
+
+Local-first: {{ skill_spec.local_first | default(true) }}
+
+## Capabilities
+
+{% if capability_items %}{% for capability in capability_items %}
+- `{{ capability.id }}` — {{ capability.label }}
+{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Safety boundaries from analysis
+
+{% if skill_spec.safety_boundaries %}{% for boundary in skill_spec.safety_boundaries %}
+- {{ boundary }}
+{% endfor %}{% else %}
+- Read-only local repository understanding.
+- No source upload.
+- No remote service dependency.
+{% endif %}
+
+## Commands noted by analysis
+
+{% if skill_spec.commands %}{% for command in skill_spec.commands %}
+- {{ command }}
+{% endfor %}{% else %}
+- none detected
+{% endif %}

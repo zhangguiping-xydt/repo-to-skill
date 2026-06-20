@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+TEXT_METADATA_FILES = (
+    "pyproject.toml",
+    "package.json",
+    "Cargo.toml",
+    "go.mod",
+    "README.md",
+)
+
+IGNORED_DIRECTORIES = {
+    ".git",
+    ".hg",
+    ".svn",
+    ".venv",
+    "venv",
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+}
+
+
+def resolve_repo(argument: str | None) -> Path:
+    repo = Path(argument or ".").expanduser().resolve()
+    if not repo.exists() or not repo.is_dir():
+        raise ValueError("repository path must be an existing directory")
+    return repo
+
+
+def iter_visible_files(repo: Path, limit: int = 200) -> list[Path]:
+    files: list[Path] = []
+    for path in sorted(repo.rglob("*")):
+        if len(files) >= limit:
+            break
+        if any(part in IGNORED_DIRECTORIES for part in path.parts):
+            continue
+        if path.is_file() and not path.is_symlink():
+            files.append(path)
+    return files
+
+
+def relative_display(repo: Path, path: Path) -> str:
+    try:
+        return path.relative_to(repo).as_posix()
+    except ValueError:
+        return path.name

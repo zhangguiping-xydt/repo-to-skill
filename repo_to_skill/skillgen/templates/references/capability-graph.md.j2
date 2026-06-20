@@ -1,0 +1,19 @@
+# Capability graph: {{ project_name }}
+
+This reference is rendered from `capability_graph.json` produced by local analysis.
+
+## Nodes
+
+{% if capability_graph.nodes %}{% for node in capability_graph.nodes %}
+- `{{ node.id }}`: {{ node.label }} ({{ node.kind }}, confidence {{ node.confidence }})
+{% endfor %}{% else %}
+- none detected
+{% endif %}
+
+## Edges
+
+{% if capability_graph.edges %}{% for edge in capability_graph.edges %}
+- `{{ edge.source }}` -> `{{ edge.target }}` ({{ edge.relation }})
+{% endfor %}{% else %}
+- none detected
+{% endif %}

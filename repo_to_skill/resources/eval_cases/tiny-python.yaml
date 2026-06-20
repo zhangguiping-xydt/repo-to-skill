@@ -1,0 +1,42 @@
+name: tiny-python
+fixture: examples/tiny-python-app
+expect:
+  languages:
+    - Python
+  ecosystems:
+    - python
+  project_name: tiny-python-app
+  capabilities:
+    - cli
+    - configuration
+    - entrypoint
+    - package manager
+    - test
+  files:
+    analyze_artifacts:
+      - scan.json
+      - profile.json
+      - capability_evidence.json
+      - capability_graph.json
+      - skill_spec.yaml
+      - verification_report.json
+      - confidence-report.md
+    skill_files:
+      - manifest.yaml
+      - SKILL.md
+      - scripts/inspect_repo.py
+      - scripts/common.py
+      - references/project-map.md
+      - references/capability-graph.md
+      - references/skill-spec.md
+      - references/confidence-report.md
+  safety:
+    local_first: true
+    no_network: true
+    no_dependency_install: true
+    no_target_repository_writes: true
+    no_runtime_registration: true
+    forbidden_output_tokens:
+      - /media/private
+      - /home/
+      - /tmp

@@ -1,0 +1,40 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local run artifacts
+.runs/
+
+# Generated media exports
+*.mp4
+
+# Test, lint, and type-check caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Packaging and tooling
+pip-wheel-metadata/
+.tox/
+.nox/
+
+# Editor and OS files
+.DS_Store
+.idea/
+.vscode/

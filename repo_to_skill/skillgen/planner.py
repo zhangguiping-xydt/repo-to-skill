@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+@dataclass(frozen=True)
+class SkillPlan:
+    target: Path
+    analysis_root: Path
+    scan: dict[str, Any]
+    profile: dict[str, Any]
+    capability_evidence: dict[str, Any]
+    capability_graph: dict[str, Any]
+    skill_spec: dict[str, Any]
+    verification_report: dict[str, Any]
+    confidence_report: str
+
+    @property
+    def project_name(self) -> str:
+        return str(self.profile.get("name") or self.skill_spec.get("name") or "local-repository")
+
+    @property
+    def description(self) -> str:
+        return str(
+            self.skill_spec.get("description")
+            or self.profile.get("description")
+            or "Local-first repository skill generated from static analysis."
+        )
+
+    @property
+    def capabilities(self) -> list[str]:
+        values = self.skill_spec.get("capabilities") or []
+        return [str(value) for value in values]
+
+
+def _analysis_root(path: Path) -> Path:
+    resolved = path.expanduser().resolve()
+    if resolved.is_dir():
+        return resolved
+    if resolved.name == "profile.json" and resolved.parent.exists():
+        return resolved.parent.resolve()
+    raise ValueError("analysis must be an analysis run directory or profile.json path")
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise ValueError(f"missing analysis artifact: {path.name}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid analysis artifact: {path.name}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"analysis artifact must be an object: {path.name}")
+    return data
+
+
+def _read_yaml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise ValueError(f"missing analysis artifact: {path.name}")
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"invalid analysis artifact: {path.name}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"analysis artifact must be a mapping: {path.name}")
+    return data
+
+
+def plan_skill(target: Path, analysis: Path) -> SkillPlan:
+    """Build a render plan from existing analyze artifacts without rescanning target."""
+    target_root = target.expanduser().resolve()
+    if not target_root.exists() or not target_root.is_dir():
+        raise ValueError("target repository must be an existing directory")
+
+    root = _analysis_root(analysis)
+    scan = _read_json(root / "scan.json")
+    profile = _read_json(root / "profile.json")
+    capability_evidence = _read_json(root / "capability_evidence.json")
+    capability_graph = _read_json(root / "capability_graph.json")
+    skill_spec = _read_yaml(root / "skill_spec.yaml")
+    verification_report = _read_json(root / "verification_report.json")
+    confidence_path = root / "confidence-report.md"
+    if not confidence_path.exists():
+        raise ValueError("missing analysis artifact: confidence-report.md")
+    confidence_report = confidence_path.read_text(encoding="utf-8")
+
+    return SkillPlan(
+        target=target_root,
+        analysis_root=root,
+        scan=scan,
+        profile=profile,
+        capability_evidence=capability_evidence,
+        capability_graph=capability_graph,
+        skill_spec=skill_spec,
+        verification_report=verification_report,
+        confidence_report=confidence_report,
+    )
