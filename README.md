@@ -1,8 +1,12 @@
 # repo-to-skill
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 repo-to-skill is a local-first Python CLI for turning a local code repository into a reviewable, installable, and verifiable AI coding agent skill pack.
 
 ![repo-to-skill visual workflow](docs/assets/repo-to-skill-overview.svg)
+
+## Overview
 
 The project is built for local scanning: it reads files from a repository on your machine, writes analysis artifacts and generated skill output to directories you choose, and does not upload source code. It does not require a remote database. It also does not use a vector database by default; a vector index may be explored later as an optional extension, but it is not an MVP dependency.
 
@@ -13,8 +17,12 @@ repo-to-skill reads a target repository without modifying it, then generates a s
 - `SKILL.md` for the human-readable project briefing.
 - `manifest.yaml` for package metadata and safety boundaries.
 - `references/project-map.md` for modules, representative paths, relationships, task entry points, and validation guidance.
-- `references/capability-graph.md`, `references/skill-spec.md`, and `references/confidence-report.md` for evidence-backed repository capabilities.
-- `scripts/inspect_repo.py` as a read-only helper that does not spawn shell commands.
+- `references/capability-graph.md` for the capability graph.
+- `references/skill-spec.md` for the skill spec.
+- `references/confidence-report.md` for capability evidence and verification notes.
+- `scripts/inspect_repo.py` as a read-only helper; generated helpers do not spawn shell commands.
+
+The analysis artifact chain includes `scan.json`, `profile.json`, `capability_evidence.json`, `capability_graph.json`, `skill_spec.yaml`, `verification_report.json`, and `confidence-report.md`.
 
 ## Visual demo assets
 
@@ -69,11 +77,11 @@ Review `SKILL.md`, `manifest.yaml`, and `references/confidence-report.md` before
 ## Commands
 
 - `doctor` checks the local Python/package environment only.
-- `analyze` performs local scanning and writes an artifact chain: `scan.json`, `profile.json`, `capability_evidence.json`, `capability_graph.json`, `skill_spec.yaml`, `verification_report.json`, and `confidence-report.md`.
+- `analyze` performs local scanning and writes the artifact chain.
 - `generate` turns a complete artifact chain into a skill directory.
 - `validate` checks the generated skill shape and safety boundaries.
 - `compose` runs analyze -> generate -> validate locally without runtime registration.
-- `eval` runs deterministic local eval cases such as the packaged `tiny-python` case, so `repo-to-skill eval --case tiny-python` works after installation. The source-tree `evals/cases` and `examples` directories remain readable examples of the packaged resources.
+- `eval` runs deterministic local eval cases such as the packaged `tiny-python` case.
 
 ## Safety model
 
@@ -81,9 +89,13 @@ repo-to-skill does not modify the target repository. The analyze/generate output
 
 Generated helper scripts are read-only: no network, no dependency installation, and generated helpers do not spawn shell commands. They inspect checked-in files and render human-reviewable references.
 
-## Business SkillOps boundary
+## Compatibility
 
-The open-source version adopts useful Business SkillOps ideas: artifact chain, capability evidence, capability graph, skill spec, and verification report. It does not connect to CapabilityRegistry/FastAPI/runtime hot registration, and it is not multi-agent-dev external_skills hot loading.
+The generated package is intentionally vendor-neutral. Different tools can read the Markdown references directly, use a command-aware adapter, or implement a native package adapter. See the adapter contract in [Compatibility](docs/compatibility.md) and [Adapters](adapters/README.md).
+
+## Runtime boundary
+
+The open-source version adopts useful repository knowledge ideas: artifact chain, capability evidence, capability graph, skill spec, and verification report. It does not connect to CapabilityRegistry/FastAPI/runtime hot registration, and it is not multi-agent-dev external_skills hot loading.
 
 ## More documentation
 
