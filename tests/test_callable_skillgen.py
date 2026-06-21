@@ -9,7 +9,9 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import yaml
+from typer.testing import CliRunner
 
+from repo_to_skill.cli import app
 from repo_to_skill.models import FileRecord, ScanResult
 from repo_to_skill.reverse.callable_capabilities import build_callable_capabilities
 from repo_to_skill.skillgen.planner import plan_callable_skills
@@ -389,3 +391,71 @@ def test_validator_flags_hardcoded_endpoint_env_drop(tmp_path: Path) -> None:
     report = validate_skill(pack)
     assert report.status == "FAIL"
     assert any("endpoint_env" in finding for finding in report.findings)
+
+
+# --------------------------------------------------------------------------- #
+# CLI — generate --mode callable
+# --------------------------------------------------------------------------- #
+
+runner = CliRunner()
+
+
+def test_cli_generate_mode_callable_produces_validating_pack(tmp_path: Path) -> None:
+    repo, analysis = _prepare(
+        tmp_path,
+        {
+            "Handlers/CalculateWorkLoad.ashx": ("ASP.NET", ASHX),
+            "BLL/KQWorkDate.cs": ("C#", CS_MODELS),
+        },
+    )
+    output = tmp_path / "skill"
+    result = runner.invoke(
+        app,
+        ["generate", str(repo), "--analysis", str(analysis), "--output", str(output), "--mode", "callable"],
+    )
+    assert result.exit_code == 0, result.stdout
+    pack = output / "calculate-work-load"
+    assert (pack / "manifest.yaml").is_file()
+    assert validate_skill(pack).status == "PASS"
+
+
+def test_cli_generate_mode_callable_reports_when_no_interfaces(tmp_path: Path) -> None:
+    repo, analysis = _prepare(tmp_path, {"util.py": ("Python", "def add(a, b):\n    return a + b\n")})
+    output = tmp_path / "skill"
+    result = runner.invoke(
+        app,
+        ["generate", str(repo), "--analysis", str(analysis), "--output", str(output), "--mode", "callable"],
+    )
+    assert result.exit_code == 0, result.stdout
+    assert "No callable HTTP interfaces detected." in result.stdout
+
+
+def test_cli_generate_rejects_unknown_mode(tmp_path: Path) -> None:
+    repo, analysis = _prepare(tmp_path, {"util.py": ("Python", "x = 1\n")})
+    output = tmp_path / "skill"
+    result = runner.invoke(
+        app,
+        ["generate", str(repo), "--analysis", str(analysis), "--output", str(output), "--mode", "bogus"],
+    )
+    assert result.exit_code == 1
+    assert "Unknown mode" in result.stdout
+
+
+def test_cli_generate_default_mode_is_repo_map(tmp_path: Path) -> None:
+    # default mode must stay repo-map; callable artifacts are ignored without --mode callable
+    repo, analysis = _prepare(
+        tmp_path,
+        {
+            "Handlers/CalculateWorkLoad.ashx": ("ASP.NET", ASHX),
+            "BLL/KQWorkDate.cs": ("C#", CS_MODELS),
+        },
+    )
+    output = tmp_path / "skill"
+    result = runner.invoke(
+        app,
+        ["generate", str(repo), "--analysis", str(analysis), "--output", str(output)],
+    )
+    # repo-map generation needs the full analysis artifact set, which _prepare does
+    # not write, so it must fail cleanly rather than silently emit a callable pack
+    assert result.exit_code == 1
+    assert not (output / "calculate-work-load").exists()

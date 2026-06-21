@@ -18,8 +18,8 @@ from repo_to_skill.reverse.project_profile import build_project_profile
 from repo_to_skill.reverse.skill_spec import build_skill_spec
 from repo_to_skill.reverse.verification import verify_static_outputs
 from repo_to_skill.scanner.filesystem import scan_repository
-from repo_to_skill.skillgen.planner import plan_skill
-from repo_to_skill.skillgen.renderer import render_skill
+from repo_to_skill.skillgen.planner import plan_callable_skills, plan_skill
+from repo_to_skill.skillgen.renderer import render_callable_skills, render_skill
 from repo_to_skill.skillgen.validator import SkillValidationReport, validate_skill
 from repo_to_skill.workspace.paths import resolve_target_and_output
 from repo_to_skill.workspace.store import ArtifactStore
@@ -71,6 +71,22 @@ def _generate_skill(target: Path, analysis: Path, output: Path) -> SkillValidati
     return report
 
 
+def _generate_callable_skills(target: Path, analysis: Path, output: Path) -> bool:
+    target_root, output_root = resolve_target_and_output(target, output)
+    plan = plan_callable_skills(target_root, analysis)
+    if not plan.interfaces:
+        console.print("No callable HTTP interfaces detected.")
+        return True
+    all_pass = True
+    for pack in render_callable_skills(plan, output_root):
+        report = validate_skill(pack)
+        console.print(f"Generated callable skill: {pack}", soft_wrap=True)
+        _print_validation(report)
+        if report.status != "PASS":
+            all_pass = False
+    return all_pass
+
+
 @app.command()
 def analyze(
     target: Path = typer.Argument(..., help="Local repository to analyze."),
@@ -93,14 +109,25 @@ def generate(
     target: Path = typer.Argument(..., help="Local repository the analysis describes."),
     analysis: Path = typer.Option(..., "--analysis", help="Analysis run directory or profile.json."),
     output: Path = typer.Option(..., "--output", "-o", help="Skill output directory."),
+    mode: str = typer.Option(
+        "repo-map",
+        "--mode",
+        help="Skill kind to generate: 'repo-map' (read-only map) or 'callable' (HTTP callers).",
+    ),
 ) -> None:
     """Generate a reviewable local AI coding agent skill pack from existing analysis artifacts."""
+    if mode not in {"repo-map", "callable"}:
+        console.print(f"Unknown mode: {mode}; expected 'repo-map' or 'callable'.")
+        raise typer.Exit(code=1)
     try:
-        report = _generate_skill(target, analysis, output)
+        if mode == "callable":
+            all_pass = _generate_callable_skills(target, analysis, output)
+        else:
+            all_pass = _generate_skill(target, analysis, output).status == "PASS"
     except ValueError as exc:
         console.print(str(exc))
         raise typer.Exit(code=1) from exc
-    if report.status != "PASS":
+    if not all_pass:
         raise typer.Exit(code=1)
 
 
