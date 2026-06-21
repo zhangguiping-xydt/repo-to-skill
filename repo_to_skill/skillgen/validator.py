@@ -228,6 +228,25 @@ def _check_callable_required_files(root: Path, findings: list[str]) -> None:
         findings.append(f"callable pack must contain exactly one scripts/call_*.py (found {len(scripts)})")
 
 
+def _check_callable_bundle_required_files(root: Path, findings: list[str]) -> None:
+    for relative in (
+        "manifest.yaml",
+        "SKILL.md",
+        "references/capability-selection.md",
+        "references/capability-source.md",
+    ):
+        if not (root / relative).is_file():
+            findings.append(f"missing required file: {relative}")
+    tools = sorted((root / "tools").glob("*.tool.yaml"))
+    scripts = sorted((root / "scripts").glob("call_*.py"))
+    if not tools:
+        findings.append("callable bundle must contain at least one tools/*.tool.yaml")
+    if not scripts:
+        findings.append("callable bundle must contain at least one scripts/call_*.py")
+    if tools and scripts and len(tools) != len(scripts):
+        findings.append(f"callable bundle tools/scripts count mismatch ({len(tools)} tools, {len(scripts)} scripts)")
+
+
 def _check_callable_manifest(root: Path, findings: list[str]) -> dict[str, Any]:
     """Validate the callable manifest and return the values needed for consistency."""
     path = root / "manifest.yaml"
@@ -279,6 +298,58 @@ def _check_callable_manifest(root: Path, findings: list[str]) -> dict[str, Any]:
     return {"method": method, "endpoint_env": endpoint_env, "token_env": token_env}
 
 
+def _check_callable_bundle_manifest(root: Path, findings: list[str]) -> dict[str, Any]:
+    path = root / "manifest.yaml"
+    manifest = _load_yaml_mapping(path)
+    if manifest is None:
+        findings.append("invalid manifest.yaml: root must be a mapping")
+        return {}
+
+    content = _text(path)
+    for key in ("name", "version", "summary", "generated_by"):
+        if key not in manifest:
+            findings.append(f"manifest.yaml missing field: {key}")
+    if manifest.get("kind") != "callable-bundle":
+        findings.append("manifest.yaml kind must be 'callable-bundle'")
+
+    runtime = manifest.get("runtime") if isinstance(manifest.get("runtime"), dict) else {}
+    if runtime.get("requires_live_system") is not True:
+        findings.append("manifest.yaml runtime.requires_live_system must be true")
+    if runtime.get("transport") != "http":
+        findings.append("manifest.yaml runtime.transport must be 'http'")
+    if not isinstance(runtime.get("interfaces_count"), int) or runtime.get("interfaces_count", 0) < 1:
+        findings.append("manifest.yaml runtime.interfaces_count must be a positive integer")
+
+    auth = manifest.get("auth") if isinstance(manifest.get("auth"), dict) else {}
+    if auth.get("required") is not True:
+        findings.append("manifest.yaml auth.required must be true")
+    if auth.get("type") != "bearer":
+        findings.append("manifest.yaml auth.type must be 'bearer'")
+
+    safety = manifest.get("safety")
+    if not isinstance(safety, dict):
+        findings.append("manifest.yaml missing safety boundary: safety")
+    else:
+        for key, expected in REQUIRED_CALLABLE_SAFETY.items():
+            if safety.get(key) != expected:
+                findings.append(f"manifest.yaml safety.{key} must be {expected!r}")
+
+    selection = manifest.get("selection") if isinstance(manifest.get("selection"), dict) else {}
+    if not str(selection.get("need_summary") or "").strip():
+        findings.append("manifest.yaml selection.need_summary must be set")
+    if not str(selection.get("source") or "").strip():
+        findings.append("manifest.yaml selection.source must be set")
+    interfaces = selection.get("interfaces") if isinstance(selection.get("interfaces"), list) else []
+    if not interfaces:
+        findings.append("manifest.yaml selection.interfaces must contain at least one interface")
+
+    for token in CALLABLE_MANIFEST_BANNED_TOKENS:
+        if token in content:
+            findings.append(f"manifest.yaml contains forbidden token: {token}")
+
+    return manifest
+
+
 def _check_callable_tool(root: Path, findings: list[str], manifest: dict[str, Any]) -> None:
     tools = sorted((root / "tools").glob("*.tool.yaml"))
     if len(tools) != 1:
@@ -300,11 +371,7 @@ def _check_callable_tool(root: Path, findings: list[str], manifest: dict[str, An
         findings.append(f"{rel} invocation.auth.token_env must match manifest auth.token_env")
 
 
-def _check_callable_script(root: Path, findings: list[str], manifest: dict[str, Any]) -> None:
-    scripts = sorted((root / "scripts").glob("call_*.py"))
-    if len(scripts) != 1:
-        return
-    path = scripts[0]
+def _check_callable_script_file(root: Path, path: Path, findings: list[str]) -> dict[str, str]:
     rel = path.relative_to(root)
     content = _text(path)
 
@@ -323,7 +390,16 @@ def _check_callable_script(root: Path, findings: list[str], manifest: dict[str, 
         if marker not in content:
             findings.append(f"{rel} missing safety marker: {marker}")
 
-    constants = dict(_STRING_CONST_RE.findall(content))
+    return dict(_STRING_CONST_RE.findall(content))
+
+
+def _check_callable_script(root: Path, findings: list[str], manifest: dict[str, Any]) -> None:
+    scripts = sorted((root / "scripts").glob("call_*.py"))
+    if len(scripts) != 1:
+        return
+    path = scripts[0]
+    rel = path.relative_to(root)
+    constants = _check_callable_script_file(root, path, findings)
     if manifest.get("endpoint_env") and constants.get("ENDPOINT_ENV") != manifest["endpoint_env"]:
         findings.append(f"{rel} ENDPOINT_ENV must match manifest runtime.endpoint_env")
     if manifest.get("token_env") and constants.get("TOKEN_ENV") != manifest["token_env"]:
@@ -335,6 +411,62 @@ def _validate_callable(root: Path, findings: list[str]) -> None:
     manifest = _check_callable_manifest(root, findings)
     _check_callable_tool(root, findings, manifest)
     _check_callable_script(root, findings, manifest)
+    _check_machine_paths(root, findings, include_all_skill_files=True)
+
+
+def _tool_invocations(root: Path, findings: list[str]) -> list[dict[str, str]]:
+    invocations: list[dict[str, str]] = []
+    for path in sorted((root / "tools").glob("*.tool.yaml")):
+        rel = path.relative_to(root)
+        tool = _load_yaml_mapping(path)
+        if tool is None:
+            findings.append(f"invalid {rel}: root must be a mapping")
+            continue
+        invocation = tool.get("invocation") if isinstance(tool.get("invocation"), dict) else {}
+        if invocation.get("transport") != "http":
+            findings.append(f"{rel} invocation.transport must be 'http'")
+        method = str(invocation.get("method") or "").strip()
+        if not method:
+            findings.append(f"{rel} invocation.method must be set")
+        endpoint_env = str(invocation.get("endpoint_env") or "").strip()
+        if not endpoint_env or not endpoint_env.endswith("_ENDPOINT"):
+            findings.append(f"{rel} invocation.endpoint_env must be set and end with _ENDPOINT")
+        auth = invocation.get("auth") if isinstance(invocation.get("auth"), dict) else {}
+        token_env = str(auth.get("token_env") or "").strip()
+        if not token_env or not token_env.endswith("_TOKEN"):
+            findings.append(f"{rel} invocation.auth.token_env must be set and end with _TOKEN")
+        invocations.append({"tool": str(rel), "endpoint_env": endpoint_env, "token_env": token_env})
+    return invocations
+
+
+def _script_constants(root: Path, findings: list[str]) -> list[dict[str, str]]:
+    constants: list[dict[str, str]] = []
+    for path in sorted((root / "scripts").glob("call_*.py")):
+        values = _check_callable_script_file(root, path, findings)
+        values["script"] = str(path.relative_to(root))
+        constants.append(values)
+    return constants
+
+
+def _check_callable_bundle_consistency(root: Path, findings: list[str]) -> None:
+    invocations = _tool_invocations(root, findings)
+    scripts = _script_constants(root, findings)
+    script_pairs = {
+        (values.get("ENDPOINT_ENV", ""), values.get("TOKEN_ENV", ""))
+        for values in scripts
+    }
+    for invocation in invocations:
+        pair = (invocation["endpoint_env"], invocation["token_env"])
+        if pair not in script_pairs:
+            findings.append(
+                f"{invocation['tool']} invocation envs must match one scripts/call_*.py constants"
+            )
+
+
+def _validate_callable_bundle(root: Path, findings: list[str]) -> None:
+    _check_callable_bundle_required_files(root, findings)
+    _check_callable_bundle_manifest(root, findings)
+    _check_callable_bundle_consistency(root, findings)
     _check_machine_paths(root, findings, include_all_skill_files=True)
 
 
@@ -354,6 +486,8 @@ def validate_skill(skill_path: Path) -> SkillValidationReport:
 
     if kind == "callable-capability":
         _validate_callable(root, findings)
+    elif kind == "callable-bundle":
+        _validate_callable_bundle(root, findings)
     else:
         _validate_readonly(root, findings)
 

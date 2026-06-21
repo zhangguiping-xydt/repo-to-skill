@@ -360,3 +360,96 @@ def test_render_skill_sanitizes_repository_metadata_and_common_machine_paths(tmp
     assert "/media/private" not in combined
     assert "/home/" not in combined
     assert "/tmp/" not in combined
+
+
+def _callable_python_repo(tmp_path: Path) -> Path:
+    return REPO_ROOT / "repo_to_skill" / "resources" / "examples" / "callable-multistack"
+
+
+def test_generate_callable_bundle_from_need(tmp_path) -> None:
+    repo = _callable_python_repo(tmp_path)
+    analysis = tmp_path / "callable-analysis"
+    output = tmp_path / "bundle-output"
+    analyze = runner.invoke(app, ["analyze", str(repo), "--output", str(analysis)])
+    assert analyze.exit_code == 0, analyze.stdout
+
+    result = runner.invoke(
+        app,
+        [
+            "generate",
+            str(repo),
+            "--analysis",
+            str(analysis),
+            "--output",
+            str(output),
+            "--mode",
+            "callable-bundle",
+            "--need",
+            "employee workload hours",
+            "--max-interfaces",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    bundle = output / "employee-workload-hours"
+    assert (bundle / "manifest.yaml").is_file()
+    assert (bundle / "references" / "capability-selection.md").is_file()
+    assert len(list((bundle / "tools").glob("*.tool.yaml"))) == 1
+    assert "Validation: PASS" in result.stdout
+
+
+def test_generate_callable_bundle_fails_for_unknown_selected_slug(tmp_path) -> None:
+    repo = _callable_python_repo(tmp_path)
+    analysis = tmp_path / "callable-analysis"
+    output = tmp_path / "bundle-output"
+    analyze = runner.invoke(app, ["analyze", str(repo), "--output", str(analysis)])
+    assert analyze.exit_code == 0, analyze.stdout
+
+    result = runner.invoke(
+        app,
+        [
+            "generate",
+            str(repo),
+            "--analysis",
+            str(analysis),
+            "--output",
+            str(output),
+            "--mode",
+            "callable-bundle",
+            "--need",
+            "employee workload",
+            "--selected-slugs",
+            "missing",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "unknown callable interface slug: missing" in result.stdout
+    assert "Traceback" not in result.stdout
+
+
+def test_generate_callable_bundle_requires_need_or_selection(tmp_path) -> None:
+    repo = _callable_python_repo(tmp_path)
+    analysis = tmp_path / "callable-analysis"
+    output = tmp_path / "bundle-output"
+    analyze = runner.invoke(app, ["analyze", str(repo), "--output", str(analysis)])
+    assert analyze.exit_code == 0, analyze.stdout
+
+    result = runner.invoke(
+        app,
+        [
+            "generate",
+            str(repo),
+            "--analysis",
+            str(analysis),
+            "--output",
+            str(output),
+            "--mode",
+            "callable-bundle",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "need must be provided" in result.stdout
+    assert "Traceback" not in result.stdout

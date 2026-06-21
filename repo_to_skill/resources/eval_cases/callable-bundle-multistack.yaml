@@ -1,0 +1,33 @@
+name: callable-bundle-multistack
+fixture: examples/callable-multistack
+mode: callable-bundle
+need: workload calculate hours
+expect:
+  project_name: callable-multistack
+  files:
+    analyze_artifacts:
+      - scan.json
+      - profile.json
+      - capability_evidence.json
+      - capability_graph.json
+      - skill_spec.yaml
+      - verification_report.json
+      - confidence-report.md
+      - callable_capabilities.json
+  callable:
+    min_interfaces: 3
+    min_bundle_interfaces: 1
+    stacks:
+      - dotnet
+      - java
+      - python
+    bundle_files:
+      - manifest.yaml
+      - SKILL.md
+      - references/capability-selection.md
+      - references/capability-source.md
+  safety:
+    forbidden_output_tokens:
+      - /media/private
+      - /home/
+      - /tmp

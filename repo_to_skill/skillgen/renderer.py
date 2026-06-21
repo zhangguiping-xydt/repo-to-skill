@@ -8,7 +8,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from repo_to_skill.reverse.callable_capabilities import json_type_for
-from repo_to_skill.skillgen.planner import CallableSkillPlan, SkillPlan
+from repo_to_skill.skillgen.planner import CallableBundlePlan, CallableSkillPlan, SkillPlan
 
 
 _ABSOLUTE_PATH_PATTERNS = (
@@ -589,3 +589,66 @@ def render_callable_skills(plan: CallableSkillPlan, output: Path) -> list[Path]:
         created.append(skill_root)
 
     return sorted(created)
+
+
+def _bundle_context(plan: CallableBundlePlan) -> dict[str, Any]:
+    project_name = _inline_text(plan.project_name, "local-repository")
+    bundle_slug = _safe_name(plan.bundle_slug)
+    interfaces: list[dict[str, Any]] = []
+    used_modules: dict[str, int] = {}
+    for item in plan.selection.items:
+        raw_slug = _safe_name(str(item.interface.get("slug") or "interface"))
+        count = used_modules.get(raw_slug, 0)
+        used_modules[raw_slug] = count + 1
+        slug = raw_slug if not count else f"{raw_slug}-{count + 1}"
+        module = _python_identifier(slug)
+        context = _callable_context(item.interface, project_name, slug, module)
+        context["selection_score"] = item.score
+        context["selection_reasons"] = [_inline_text(reason) for reason in item.reasons]
+        interfaces.append(context)
+
+    return {
+        "project_name": project_name,
+        "bundle_slug": bundle_slug,
+        "need_summary": _inline_text(plan.selection.need_summary, "Selected callable interfaces."),
+        "selection_source": _inline_text(plan.selection.selection_source, "deterministic"),
+        "interfaces": interfaces,
+        "interfaces_count": len(interfaces),
+        "generated_by": "repo-to-skill",
+    }
+
+
+def render_callable_bundle(plan: CallableBundlePlan, output: Path) -> Path:
+    """Render one goal-oriented callable-bundle skill containing multiple tools."""
+    output_root = output.expanduser().resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    env = _template_env()
+    context = _bundle_context(plan)
+    skill_root = output_root / context["bundle_slug"]
+    (skill_root / "scripts").mkdir(parents=True, exist_ok=True)
+    (skill_root / "tools").mkdir(parents=True, exist_ok=True)
+    (skill_root / "references").mkdir(parents=True, exist_ok=True)
+
+    bundle_outputs = {
+        "SKILL.md": "callable_bundle/SKILL.md.j2",
+        "manifest.yaml": "callable_bundle/manifest.yaml.j2",
+        "references/capability-selection.md": "callable_bundle/references/capability-selection.md.j2",
+        "references/capability-source.md": "callable_bundle/references/capability-source.md.j2",
+    }
+    for relative_path, template_name in bundle_outputs.items():
+        rendered = env.get_template(template_name).render(**context)
+        rendered = _strip_machine_paths(rendered)
+        (skill_root / relative_path).write_text(rendered, encoding="utf-8")
+
+    for interface in context["interfaces"]:
+        outputs = {
+            f"tools/{interface['module']}.tool.yaml": "callable/tools/tool.yaml.j2",
+            f"scripts/call_{interface['module']}.py": "callable/scripts/call.py.j2",
+        }
+        for relative_path, template_name in outputs.items():
+            rendered = env.get_template(template_name).render(**interface)
+            rendered = _strip_machine_paths(rendered)
+            (skill_root / relative_path).write_text(rendered, encoding="utf-8")
+
+    return skill_root

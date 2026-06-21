@@ -39,8 +39,22 @@ def test_eval_callable_multistack_case_runs_full_local_flow() -> None:
     assert "Eval result: PASS" in result.stdout
 
 
+def test_eval_callable_bundle_multistack_case_runs_full_local_flow() -> None:
+    result = runner.invoke(app, ["eval", "--case", "callable-bundle-multistack"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "Eval case: callable-bundle-multistack" in result.stdout
+    assert "analyze artifacts: PASS" in result.stdout
+    assert "callable detection: PASS" in result.stdout
+    assert "callable bundle: PASS" in result.stdout
+    assert "callable bundle validation: PASS" in result.stdout
+    assert "machine path leaks: PASS" in result.stdout
+    assert "Eval result: PASS" in result.stdout
+
+
 def test_eval_callable_case_appears_in_available_cases() -> None:
     assert "callable-multistack" in eval_runner.available_cases()
+    assert "callable-bundle-multistack" in eval_runner.available_cases()
 
 
 def test_eval_unknown_case_fails_with_readable_message() -> None:

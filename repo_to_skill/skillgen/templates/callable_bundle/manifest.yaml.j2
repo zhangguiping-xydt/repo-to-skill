@@ -1,0 +1,36 @@
+name: {{ bundle_slug }}
+version: 0.1.0
+kind: callable-bundle
+summary: {{ ("Callable API bundle for " ~ need_summary) | tojson }}
+
+runtime:
+  requires_live_system: true
+  transport: http
+  interfaces_count: {{ interfaces_count }}
+
+auth:
+  required: true
+  type: bearer
+
+safety:
+  dry_run_default: true
+  network: requires-explicit-endpoint
+  dependency_install: disabled
+  target_repository_writes: disabled
+
+selection:
+  source: {{ selection_source }}
+  need_summary: {{ need_summary | tojson }}
+  interfaces_count: {{ interfaces_count }}
+  interfaces:
+{% for interface in interfaces %}
+    - slug: {{ interface.slug | tojson }}
+      tool: {{ interface.tool_name | tojson }}
+      method: {{ interface.http_method }}
+      route: {{ interface.route | tojson }}
+      endpoint_env: {{ interface.endpoint_env }}
+      token_env: {{ interface.token_env }}
+      score: {{ interface.selection_score }}
+{% endfor %}
+
+generated_by: {{ generated_by }}

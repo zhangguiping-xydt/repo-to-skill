@@ -1,0 +1,22 @@
+# Capability selection
+
+This bundle was generated for the following user goal:
+
+> {{ need_summary }}
+
+Selection source: `{{ selection_source }}`
+
+## Selected interfaces
+
+| Interface | Method / route | Handler | Score | Reasons |
+|-----------|----------------|---------|-------|---------|
+{% for interface in interfaces %}
+| `{{ interface.slug }}` | `{{ interface.http_method }} {{ interface.route }}` | `{{ interface.handler_symbol }}` | {{ interface.selection_score }} | {{ interface.selection_reasons | join("; ") }} |
+{% endfor %}
+
+## How to review this selection
+
+The selected interfaces are not invented. Each one comes from
+`callable_capabilities.json`, which is generated from static analysis of the
+repository. If an agent supplied explicit slugs, repo-to-skill verified that each
+slug exists before rendering this bundle.

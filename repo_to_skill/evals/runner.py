@@ -11,6 +11,8 @@ import yaml
 
 from repo_to_skill.evals.checks import (
     EvalCheck,
+    check_callable_bundle,
+    check_callable_bundle_validation,
     check_callable_detection,
     check_callable_packs,
     check_callable_validation,
@@ -31,8 +33,8 @@ from repo_to_skill.reverse.project_profile import build_project_profile
 from repo_to_skill.reverse.skill_spec import build_skill_spec
 from repo_to_skill.reverse.verification import verify_static_outputs
 from repo_to_skill.scanner.filesystem import scan_repository
-from repo_to_skill.skillgen.planner import plan_callable_skills, plan_skill
-from repo_to_skill.skillgen.renderer import render_callable_skills, render_skill
+from repo_to_skill.skillgen.planner import plan_callable_bundle, plan_callable_skills, plan_skill
+from repo_to_skill.skillgen.renderer import render_callable_bundle, render_callable_skills, render_skill
 from repo_to_skill.skillgen.validator import validate_skill
 from repo_to_skill.workspace.store import ArtifactStore
 
@@ -101,7 +103,7 @@ def _validate_string_list(case_name: str, value: Any, field: str) -> None:
         raise _invalid_case(case_name, f"field {field} must contain only strings")
 
 
-_VALID_MODES = ("repo-map", "callable")
+_VALID_MODES = ("repo-map", "callable", "callable-bundle")
 
 
 def _validate_case_schema(case_name: str, data: dict[str, Any]) -> None:
@@ -134,9 +136,14 @@ def _validate_case_schema(case_name: str, data: dict[str, Any]) -> None:
         raise _invalid_case(case_name, "field expect.callable must be a mapping")
     if "min_interfaces" in callable_expect and not isinstance(callable_expect["min_interfaces"], int):
         raise _invalid_case(case_name, "field expect.callable.min_interfaces must be an integer")
-    for field in ("stacks", "pack_files"):
+    if "min_bundle_interfaces" in callable_expect and not isinstance(callable_expect["min_bundle_interfaces"], int):
+        raise _invalid_case(case_name, "field expect.callable.min_bundle_interfaces must be an integer")
+    for field in ("stacks", "pack_files", "bundle_files"):
         if field in callable_expect:
             _validate_string_list(case_name, callable_expect[field], f"expect.callable.{field}")
+
+    if mode == "callable-bundle" and not isinstance(data.get("need"), str):
+        raise _invalid_case(case_name, "field need must be set for callable-bundle cases")
 
     safety = expected.get("safety", {})
     if not isinstance(safety, dict):
@@ -246,6 +253,10 @@ def run_eval(case_name: str, workspace: Path | None = None) -> EvalResult:
             rendered_root = _run_callable_eval(case, fixture, analysis_root, skill_root, checks)
             status = "PASS" if all(check.passed for check in checks) else "FAIL"
             return EvalResult(case_name, status, root, analysis_root, rendered_root, checks)
+        if mode == "callable-bundle":
+            rendered_root = _run_callable_bundle_eval(case, fixture, analysis_root, skill_root, checks)
+            status = "PASS" if all(check.passed for check in checks) else "FAIL"
+            return EvalResult(case_name, status, root, analysis_root, rendered_root, checks)
 
         plan = plan_skill(fixture, analysis_root)
         rendered_skill = render_skill(plan, skill_root)
@@ -294,3 +305,33 @@ def _run_callable_eval(
     )
     checks.append(check_no_forbidden_tokens_in_packs(rendered_packs, [str(value) for value in forbidden_tokens]))
     return skill_root
+
+
+def _run_callable_bundle_eval(
+    case: dict[str, Any],
+    fixture: Path,
+    analysis_root: Path,
+    skill_root: Path,
+    checks: list[EvalCheck],
+) -> Path:
+    expected = case.get("expect", {})
+    callable_capabilities = load_json_object(analysis_root / "callable_capabilities.json")
+    checks.append(check_callable_detection(callable_capabilities, case))
+
+    plan = plan_callable_bundle(
+        fixture,
+        analysis_root,
+        need=str(case.get("need") or ""),
+        selected_slugs=None,
+        selection_json=None,
+        max_interfaces=int(expected.get("callable", {}).get("max_interfaces", 12)),
+    )
+    bundle = render_callable_bundle(plan, skill_root)
+    checks.append(check_callable_bundle(bundle, case))
+    checks.append(check_callable_bundle_validation(validate_skill(bundle)))
+
+    forbidden_tokens = expected.get("safety", {}).get(
+        "forbidden_output_tokens", ["/media/private", "/home/", "/tmp"]
+    )
+    checks.append(check_no_forbidden_tokens_in_packs([bundle], [str(value) for value in forbidden_tokens]))
+    return bundle

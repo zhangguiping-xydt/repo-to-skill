@@ -134,6 +134,31 @@ def check_callable_packs(skill_roots: list[Path], case: dict[str, Any]) -> EvalC
     return EvalCheck("callable packs", True, f"{len(skill_roots)} packs include expected files")
 
 
+def check_callable_bundle(skill_root: Path, case: dict[str, Any]) -> EvalCheck:
+    bundle_files = case.get("expect", {}).get("callable", {}).get(
+        "bundle_files",
+        ["manifest.yaml", "SKILL.md", "references/capability-selection.md", "references/capability-source.md"],
+    )
+    missing: list[str] = []
+    for relative in bundle_files:
+        if not (skill_root / str(relative)).is_file():
+            missing.append(str(relative))
+    tools = sorted(skill_root.glob("tools/*.tool.yaml"))
+    scripts = sorted(skill_root.glob("scripts/call_*.py"))
+    if not tools:
+        missing.append("tools/*.tool.yaml")
+    if not scripts:
+        missing.append("scripts/call_*.py")
+    if tools and scripts and len(tools) != len(scripts):
+        missing.append("tools/scripts count mismatch")
+    minimum = case.get("expect", {}).get("callable", {}).get("min_bundle_interfaces")
+    if isinstance(minimum, int) and len(tools) < minimum:
+        missing.append(f"expected at least {minimum} bundle interfaces, found {len(tools)}")
+    if missing:
+        return EvalCheck("callable bundle", False, "missing: " + ", ".join(missing))
+    return EvalCheck("callable bundle", True, f"bundle includes {len(tools)} callable tools")
+
+
 def check_callable_validation(reports: list[tuple[str, SkillValidationReport]]) -> EvalCheck:
     if not reports:
         return EvalCheck("callable validation", False, "no callable packs were validated")
@@ -145,6 +170,12 @@ def check_callable_validation(reports: list[tuple[str, SkillValidationReport]]) 
     if failures:
         return EvalCheck("callable validation", False, " | ".join(failures))
     return EvalCheck("callable validation", True, f"{len(reports)} packs returned PASS")
+
+
+def check_callable_bundle_validation(report: SkillValidationReport) -> EvalCheck:
+    if report.status == "PASS":
+        return EvalCheck("callable bundle validation", True, "validator returned PASS")
+    return EvalCheck("callable bundle validation", False, "; ".join(report.findings) or "validator returned FAIL")
 
 
 def check_no_forbidden_tokens_in_packs(skill_roots: list[Path], forbidden_tokens: list[str]) -> EvalCheck:

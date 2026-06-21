@@ -18,8 +18,8 @@ from repo_to_skill.reverse.project_profile import build_project_profile
 from repo_to_skill.reverse.skill_spec import build_skill_spec
 from repo_to_skill.reverse.verification import verify_static_outputs
 from repo_to_skill.scanner.filesystem import scan_repository
-from repo_to_skill.skillgen.planner import plan_callable_skills, plan_skill
-from repo_to_skill.skillgen.renderer import render_callable_skills, render_skill
+from repo_to_skill.skillgen.planner import plan_callable_bundle, plan_callable_skills, plan_skill
+from repo_to_skill.skillgen.renderer import render_callable_bundle, render_callable_skills, render_skill
 from repo_to_skill.skillgen.validator import SkillValidationReport, validate_skill
 from repo_to_skill.workspace.paths import resolve_target_and_output
 from repo_to_skill.workspace.store import ArtifactStore
@@ -87,6 +87,38 @@ def _generate_callable_skills(target: Path, analysis: Path, output: Path) -> boo
     return all_pass
 
 
+def _parse_slugs(value: str | None) -> list[str] | None:
+    if value is None:
+        return None
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def _generate_callable_bundle(
+    target: Path,
+    analysis: Path,
+    output: Path,
+    *,
+    need: str,
+    max_interfaces: int,
+    selected_slugs: str | None,
+    selection_json: Path | None,
+) -> bool:
+    target_root, output_root = resolve_target_and_output(target, output)
+    plan = plan_callable_bundle(
+        target_root,
+        analysis,
+        need=need,
+        selected_slugs=_parse_slugs(selected_slugs),
+        selection_json=selection_json,
+        max_interfaces=max_interfaces,
+    )
+    bundle = render_callable_bundle(plan, output_root)
+    report = validate_skill(bundle)
+    console.print(f"Generated callable bundle: {bundle}", soft_wrap=True)
+    _print_validation(report)
+    return report.status == "PASS"
+
+
 @app.command()
 def analyze(
     target: Path = typer.Argument(..., help="Local repository to analyze."),
@@ -112,16 +144,38 @@ def generate(
     mode: str = typer.Option(
         "repo-map",
         "--mode",
-        help="Skill kind to generate: 'repo-map' (read-only map) or 'callable' (HTTP callers).",
+        help="Skill kind to generate: 'repo-map', 'callable', or 'callable-bundle'.",
+    ),
+    need: str = typer.Option("", "--need", help="User goal for callable-bundle interface selection."),
+    max_interfaces: int = typer.Option(12, "--max-interfaces", help="Maximum callable interfaces in a bundle."),
+    selected_slugs: str | None = typer.Option(
+        None,
+        "--selected-slugs",
+        help="Comma-separated callable interface slugs selected by an agent or user.",
+    ),
+    selection_json: Path | None = typer.Option(
+        None,
+        "--selection-json",
+        help="JSON file with need_summary, selected_slugs, and selection_source.",
     ),
 ) -> None:
     """Generate a reviewable local AI coding agent skill pack from existing analysis artifacts."""
-    if mode not in {"repo-map", "callable"}:
-        console.print(f"Unknown mode: {mode}; expected 'repo-map' or 'callable'.")
+    if mode not in {"repo-map", "callable", "callable-bundle"}:
+        console.print(f"Unknown mode: {mode}; expected 'repo-map', 'callable', or 'callable-bundle'.")
         raise typer.Exit(code=1)
     try:
         if mode == "callable":
             all_pass = _generate_callable_skills(target, analysis, output)
+        elif mode == "callable-bundle":
+            all_pass = _generate_callable_bundle(
+                target,
+                analysis,
+                output,
+                need=need,
+                max_interfaces=max_interfaces,
+                selected_slugs=selected_slugs,
+                selection_json=selection_json,
+            )
         else:
             all_pass = _generate_skill(target, analysis, output).status == "PASS"
     except ValueError as exc:

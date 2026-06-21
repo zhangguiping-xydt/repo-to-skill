@@ -1,0 +1,55 @@
+---
+name: {{ bundle_slug }}
+description: {{ ("Call selected live APIs for: " ~ need_summary) | tojson }}
+kind: callable-bundle
+---
+
+# {{ project_name }} · callable API bundle
+
+This skill turns a user goal into a focused set of callable API tools from the
+{{ project_name }} system.
+
+Goal: {{ need_summary }}
+
+## Included tools
+
+{% for interface in interfaces %}
+- `{{ interface.tool_name }}` (`{{ interface.slug }}`) — `{{ interface.http_method }} {{ interface.route }}` via `{{ interface.handler_symbol }}`.
+{% endfor %}
+
+## When to use
+
+- You need live answers or actions from the existing system for the goal above.
+- The existing system is the source of truth and reimplementing the logic would
+  risk drifting from production behavior.
+
+## When NOT to use
+
+- You do not have endpoint access or credentials for the live system.
+- You only need static code understanding; use a read-only repo map skill.
+
+## How to call
+
+Each API has its own tool contract and caller script:
+
+{% for interface in interfaces %}
+```bash
+{{ interface.sample_command }}
+```
+{% endfor %}
+
+Every caller previews by default. It sends a request only when `--execute` is
+passed and the endpoint environment variable is configured. Auth tokens are read
+from environment variables and redacted in previews.
+
+## Selection provenance
+
+See `references/capability-selection.md` for why these APIs were selected, and
+`references/capability-source.md` for the source-level route, handler, business
+method, and contract evidence.
+
+## Safety
+
+This is a callable bundle: it can reach live HTTP systems when explicitly
+executed. It does not install dependencies, does not modify the source
+repository, and defaults to dry-run previews.

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from repo_to_skill.skillgen.callable_selector import CallableBundleSelection, select_callable_interfaces
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,31 @@ class CallableSkillPlan:
     @property
     def notes(self) -> list[str]:
         return [str(value) for value in self.callable_capabilities.get("notes") or []]
+
+
+@dataclass(frozen=True)
+class CallableBundlePlan:
+    target: Path
+    analysis_root: Path
+    scan: dict[str, Any]
+    profile: dict[str, Any]
+    callable_capabilities: dict[str, Any]
+    selection: CallableBundleSelection
+
+    @property
+    def project_name(self) -> str:
+        return str(
+            self.callable_capabilities.get("project")
+            or self.profile.get("name")
+            or "local-repository"
+        )
+
+    @property
+    def bundle_slug(self) -> str:
+        value = self.selection.need_summary or self.project_name
+        cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip().lower()).strip("-._")
+        return cleaned or "callable-bundle"
+
 
 
 def _analysis_root(path: Path) -> Path:
@@ -145,4 +173,57 @@ def plan_callable_skills(target: Path, analysis: Path) -> CallableSkillPlan:
         scan=scan,
         profile=profile,
         callable_capabilities=callable_capabilities,
+    )
+
+
+def _load_selection_json(path: Path) -> dict[str, Any]:
+    data = _read_json(path.expanduser().resolve())
+    slugs = data.get("selected_slugs")
+    if slugs is not None and not isinstance(slugs, list):
+        raise ValueError("selection_json selected_slugs must be a list")
+    if slugs is not None and not all(isinstance(value, str) for value in slugs):
+        raise ValueError("selection_json selected_slugs must contain only strings")
+    return data
+
+
+def plan_callable_bundle(
+    target: Path,
+    analysis: Path,
+    *,
+    need: str,
+    selected_slugs: list[str] | None,
+    selection_json: Path | None,
+    max_interfaces: int,
+) -> CallableBundlePlan:
+    """Build a render plan for one goal-oriented callable-bundle skill."""
+    base = plan_callable_skills(target, analysis)
+    selection_source = "deterministic"
+    need_summary = need
+    slugs = selected_slugs
+
+    if selection_json is not None:
+        data = _load_selection_json(selection_json)
+        need_summary = str(data.get("need_summary") or need_summary or "")
+        slugs = [str(value) for value in data.get("selected_slugs") or []]
+        selection_source = str(data.get("selection_source") or "agentic")
+    elif selected_slugs:
+        selection_source = "agentic"
+
+    selection = select_callable_interfaces(
+        base.interfaces,
+        need_summary,
+        selected_slugs=slugs,
+        max_interfaces=max_interfaces,
+        selection_source=selection_source,
+    )
+    if not selection.items:
+        raise ValueError("no callable interfaces matched the requested need")
+
+    return CallableBundlePlan(
+        target=base.target,
+        analysis_root=base.analysis_root,
+        scan=base.scan,
+        profile=base.profile,
+        callable_capabilities=base.callable_capabilities,
+        selection=selection,
     )

@@ -1,0 +1,49 @@
+# Capability source
+
+This bundle wraps existing HTTP interfaces detected in the analyzed repository.
+Field names are kept exactly as detected so JSON contracts stay faithful to the
+live system.
+
+{% for interface in interfaces %}
+## {{ interface.slug }} — `{{ interface.http_method }} {{ interface.route }}`
+
+- Stack: {{ interface.stack }}
+- Framework: {{ interface.framework }}
+- Handler: `{{ interface.handler_symbol }}`
+{% if interface.handler_path %}
+- Source file: `{{ interface.handler_path }}`
+{% endif %}
+{% if interface.business_method %}
+- Business method: `{{ interface.business_method }}`
+{% endif %}
+- Tool: `tools/{{ interface.module }}.tool.yaml`
+- Caller: `scripts/call_{{ interface.module }}.py`
+- Endpoint env: `{{ interface.endpoint_env }}`
+- Token env: `{{ interface.token_env }}`
+
+### Input model — `{{ interface.request_model }}`
+
+{% if interface.request_fields %}
+| Field | JSON type | Required |
+|-------|-----------|----------|
+{% for field in interface.request_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} | {{ "yes" if field.required else "no" }} |
+{% endfor %}
+{% else %}
+The request payload could not be resolved from source. Pass a raw JSON body with
+`--json-body` until the contract is confirmed.
+{% endif %}
+
+### Output model — `{{ interface.response_model }}`
+
+{% if interface.response_fields %}
+| Field | JSON type |
+|-------|-----------|
+{% for field in interface.response_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} |
+{% endfor %}
+{% else %}
+The response payload could not be resolved from source.
+{% endif %}
+
+{% endfor %}
