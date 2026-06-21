@@ -2,11 +2,29 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-repo-to-skill is a local-first Python CLI for turning a local code repository into a reviewable, installable, and verifiable AI coding agent skill pack.
+**Give your AI coding agent a map of the repository before it starts editing.**
 
-![repo-to-skill visual workflow](docs/assets/repo-to-skill-overview.svg)
+repo-to-skill is a local-first CLI that reads a local repository and generates a separate, portable skill pack — project map, key modules, module relationships, task entry points, and validation guidance — so an agent starts oriented instead of guessing.
+
+![Before and after: an AI coding agent working with and without a repo map](docs/assets/repo-to-skill-before-after.svg)
+
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](pyproject.toml)
+[![Release](https://img.shields.io/badge/release-v0.1.1-2EA9C0.svg)](https://github.com/zhangguiping-xydt/repo-to-skill/releases/latest)
+
+- **Local-first** — your source never leaves your machine; no remote services.
+- **Non-invasive** — it never modifies the target repository.
+- **Deterministic** — static analysis only; no LLM or vector database in the core.
+- **Proven at scale** — verified on a large repository with 4,459 files and about 940k scanned lines.
+
+```bash
+pip install -e .
+repo-to-skill compose ../my-app --output ../my-app-skill
+```
 
 ## Overview
+
+![repo-to-skill local workflow: local repo, read-only scan, reasoning map, skill pack](docs/assets/repo-to-skill-overview.svg)
 
 The project is built for local scanning: it reads files from a repository on your machine, writes analysis artifacts and generated skill output to directories you choose, and does not upload source code. It does not require a remote database. It also does not use a vector database by default; a vector index may be explored later as an optional extension, but it is not an MVP dependency.
 

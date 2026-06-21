@@ -2,11 +2,29 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-repo-to-skill 是一个本地优先的 Python CLI，用来把本地代码仓库转换成可审查、可安装、可验证的 AI 编程代理技能包。
+**在 AI 编程代理动手改代码之前，先给它一张仓库地图。**
 
-![repo-to-skill 可视化工作流](docs/assets/repo-to-skill-overview.zh-CN.svg)
+repo-to-skill 是一个本地优先的 CLI：它读取本地仓库，生成一个独立、可移植的技能包 —— 项目地图、关键模块、模块关系、任务入口和验证建议，让代理一开始就有方向，而不是盲猜。
+
+![使用前后对比：AI 编程代理在有无仓库地图下的工作方式](docs/assets/repo-to-skill-before-after.zh-CN.svg)
+
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](pyproject.toml)
+[![Release](https://img.shields.io/badge/release-v0.1.1-2EA9C0.svg)](https://github.com/zhangguiping-xydt/repo-to-skill/releases/latest)
+
+- **本地优先** —— 源码不出本机，不调用远程服务。
+- **非侵入** —— 不修改目标仓库。
+- **确定性** —— 只做静态分析，核心不依赖 LLM 或向量库。
+- **大规模验证** —— 已在 4,459 个文件、约 94 万扫描行的大型仓库上验证。
+
+```bash
+pip install -e .
+repo-to-skill compose ../my-app --output ../my-app-skill
+```
 
 ## 项目概览
+
+![repo-to-skill 本地工作流：本地仓库、只读扫描、推理地图、技能包](docs/assets/repo-to-skill-overview.zh-CN.svg)
 
 repo-to-skill 面向本地扫描场景：它读取你机器上的目标仓库，把分析产物和生成的技能包写到你指定的目录，并且不会上传源码。它不需要远程数据库，也不默认使用向量数据库；未来可以把向量索引作为可选扩展探索，但它不是当前 MVP 的依赖。
 
