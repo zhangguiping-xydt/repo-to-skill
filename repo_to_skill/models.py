@@ -154,3 +154,54 @@ class SkillSpec(DumpMixin):
 class VerificationReport(DumpMixin):
     status: str
     findings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class IoField(DumpMixin):
+    name: str
+    type: str = "unknown"
+    required: bool = False
+    description: str = ""
+    source_path: str = ""
+    source_symbol: str = ""
+    confidence: float = 0.0
+
+
+@dataclass
+class IoContract(DumpMixin):
+    model_name: str = "unknown"
+    media_type: str = "application/json"
+    fields: list[IoField] = field(default_factory=list)
+    confidence: float = 0.0
+    unresolved: bool = True
+    notes: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CallableInterface(DumpMixin):
+    id: str
+    slug: str
+    stack: str
+    framework: str
+    transport: str = "http"
+    http_method: str = "UNKNOWN"
+    route: str = ""
+    handler_symbol: str = ""
+    handler_path: str = ""
+    handler_line: int = 0
+    business_method: str = ""
+    request: IoContract = field(default_factory=IoContract)
+    response: IoContract = field(default_factory=IoContract)
+    endpoint_env: str = ""
+    token_env: str = ""
+    auth_required: bool = True
+    side_effects: str = "unknown"
+    confidence: float = 0.0
+    evidence: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CallableCapabilitySet(DumpMixin):
+    project: str
+    interfaces: list[CallableInterface] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
