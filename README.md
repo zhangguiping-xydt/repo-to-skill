@@ -4,13 +4,18 @@
 
 **Give it a repo and a user goal. It finds the right APIs and turns them into callable agent skills.**
 
-repo-to-skill helps coding agents reuse existing software instead of reimplementing it. It reads a local repository, detects callable HTTP interfaces, selects the APIs that match a user goal, and generates a separate skill package with tool schemas, safe caller scripts, and source-level provenance.
+repo-to-skill helps coding agents reuse existing software instead of reimplementing it. It reads a local repository **from source — no API docs or OpenAPI spec required**, detects callable HTTP interfaces, selects the APIs that match a user goal, and generates a separate, installable skill package with tool schemas, safe caller scripts, and source-level provenance.
 
+- **Source, not docs** — it reverse-engineers callable interfaces from source code via static analysis, so it works on legacy systems that have no API documentation.
 - **Goal-oriented** — start from a user goal, not a hand-picked API list.
 - **Callable** — generated skills include tool contracts and `scripts/call_*.py` helpers for live HTTP systems.
-- **Agent-ready** — use it as a skill-builder inside any coding-agent workflow, or call the CLI directly.
+- **Installable** — `--install` drops the generated skill into `~/.claude/skills` and `~/.agents/skills` for immediate cross-agent use.
 - **Non-invasive** — it reads the target repository and writes output elsewhere; it never modifies the target repo.
 - **Auditable** — every selected API is explained with route, handler, business method, field contract, score, and source reference.
+
+## How it's different
+
+Most ways to give an agent a new skill are either **hand-written** or generated from **API documentation / an OpenAPI spec**. repo-to-skill starts from **source code**: it statically detects the HTTP interfaces a codebase already exposes and turns the selected ones into callable skills — with every field traced back to the source. That makes it usable on exactly the systems that lack docs: older internal and enterprise services.
 
 ## Why this exists
 
@@ -67,15 +72,7 @@ python -m pip install -e .
 repo-to-skill --help
 ```
 
-Generate a read-only repo map:
-
-```bash
-repo-to-skill compose ./examples/tiny-python-app \
-  --workdir ./.runs/tiny-python-analysis \
-  --output ./.runs/tiny-python-skill
-```
-
-Generate a callable skill bundle from a repository and a goal:
+Generate a callable skill bundle from a repository and a goal, then install it for immediate agent use:
 
 ```bash
 repo-to-skill analyze ./my-legacy-system --output ./.runs/my-system-analysis
@@ -85,7 +82,18 @@ repo-to-skill generate ./my-legacy-system \
   --output ./.runs/my-system-skill \
   --mode callable-bundle \
   --need "employee onboarding and job transfer workflows" \
-  --max-interfaces 12
+  --max-interfaces 12 \
+  --install
+```
+
+With `--install`, a bundle that passes validation is copied into `~/.claude/skills/` and `~/.agents/skills/` so a coding agent can pick it up right away. Omit `--install` to only write the reviewable package under `--output`.
+
+Or generate a read-only repository map skill:
+
+```bash
+repo-to-skill compose ./examples/tiny-python-app \
+  --workdir ./.runs/tiny-python-analysis \
+  --output ./.runs/tiny-python-skill
 ```
 
 Validate the generated bundle:
