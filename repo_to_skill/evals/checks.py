@@ -88,5 +88,83 @@ def check_no_forbidden_tokens(skill_root: Path, forbidden_tokens: list[str]) -> 
     return EvalCheck("machine path leaks", True, "no forbidden machine path tokens in SKILL.md/references")
 
 
+def check_callable_detection(callable_capabilities: dict[str, Any], case: dict[str, Any]) -> EvalCheck:
+    expected = case.get("expect", {}).get("callable", {})
+    interfaces = [item for item in callable_capabilities.get("interfaces", []) if isinstance(item, dict)]
+
+    failures: list[str] = []
+    minimum = expected.get("min_interfaces")
+    if isinstance(minimum, int) and len(interfaces) < minimum:
+        failures.append(f"expected at least {minimum} interfaces, found {len(interfaces)}")
+
+    expected_stacks = {str(value).lower() for value in expected.get("stacks", [])}
+    found_stacks = {str(item.get("stack", "")).lower() for item in interfaces}
+    missing_stacks = sorted(expected_stacks - found_stacks)
+    if missing_stacks:
+        failures.append("missing stacks: " + ", ".join(missing_stacks))
+
+    if failures:
+        return EvalCheck("callable detection", False, "; ".join(failures))
+    return EvalCheck(
+        "callable detection",
+        True,
+        f"detected {len(interfaces)} interfaces across stacks {', '.join(sorted(found_stacks)) or 'none'}",
+    )
+
+
+def check_callable_packs(skill_roots: list[Path], case: dict[str, Any]) -> EvalCheck:
+    if not skill_roots:
+        return EvalCheck("callable packs", False, "no callable packs were rendered")
+
+    pack_files = case.get("expect", {}).get("callable", {}).get(
+        "pack_files", ["manifest.yaml", "SKILL.md", "references/capability-source.md"]
+    )
+    missing: list[str] = []
+    for root in skill_roots:
+        for relative in pack_files:
+            if not (root / str(relative)).is_file():
+                missing.append(f"{root.name}/{relative}")
+        if not list(root.glob("tools/*.tool.yaml")):
+            missing.append(f"{root.name}/tools/*.tool.yaml")
+        if not list(root.glob("scripts/call_*.py")):
+            missing.append(f"{root.name}/scripts/call_*.py")
+
+    if missing:
+        return EvalCheck("callable packs", False, "missing: " + ", ".join(missing))
+    return EvalCheck("callable packs", True, f"{len(skill_roots)} packs include expected files")
+
+
+def check_callable_validation(reports: list[tuple[str, SkillValidationReport]]) -> EvalCheck:
+    if not reports:
+        return EvalCheck("callable validation", False, "no callable packs were validated")
+    failures: list[str] = []
+    for name, report in reports:
+        if report.status != "PASS":
+            detail = "; ".join(report.findings) or "FAIL"
+            failures.append(f"{name}: {detail}")
+    if failures:
+        return EvalCheck("callable validation", False, " | ".join(failures))
+    return EvalCheck("callable validation", True, f"{len(reports)} packs returned PASS")
+
+
+def check_no_forbidden_tokens_in_packs(skill_roots: list[Path], forbidden_tokens: list[str]) -> EvalCheck:
+    leaks: list[str] = []
+    for root in skill_roots:
+        for path in sorted(root.glob("**/*")):
+            if not path.is_file():
+                continue
+            try:
+                content = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for token in forbidden_tokens:
+                if token in content:
+                    leaks.append(f"{root.name}/{path.relative_to(root)} contains {token}")
+
+    if leaks:
+        return EvalCheck("machine path leaks", False, "; ".join(leaks))
+    return EvalCheck("machine path leaks", True, "no forbidden machine path tokens in callable packs")
+
+
 def default_skill_files() -> list[str]:
     return list(REQUIRED_FILES)

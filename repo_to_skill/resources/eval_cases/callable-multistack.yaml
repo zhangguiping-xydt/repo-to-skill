@@ -1,0 +1,35 @@
+name: callable-multistack
+fixture: examples/callable-multistack
+mode: callable
+expect:
+  project_name: callable-multistack
+  files:
+    analyze_artifacts:
+      - scan.json
+      - profile.json
+      - capability_evidence.json
+      - capability_graph.json
+      - skill_spec.yaml
+      - verification_report.json
+      - confidence-report.md
+      - callable_capabilities.json
+  callable:
+    min_interfaces: 3
+    stacks:
+      - dotnet
+      - java
+      - python
+    pack_files:
+      - manifest.yaml
+      - SKILL.md
+      - references/capability-source.md
+  safety:
+    local_first: true
+    no_network: true
+    no_dependency_install: true
+    no_target_repository_writes: true
+    no_runtime_registration: true
+    forbidden_output_tokens:
+      - /media/private
+      - /home/
+      - /tmp

@@ -11,8 +11,12 @@ import yaml
 
 from repo_to_skill.evals.checks import (
     EvalCheck,
+    check_callable_detection,
+    check_callable_packs,
+    check_callable_validation,
     check_files,
     check_no_forbidden_tokens,
+    check_no_forbidden_tokens_in_packs,
     check_profile_and_spec_signals,
     check_validation,
     default_skill_files,
@@ -27,8 +31,8 @@ from repo_to_skill.reverse.project_profile import build_project_profile
 from repo_to_skill.reverse.skill_spec import build_skill_spec
 from repo_to_skill.reverse.verification import verify_static_outputs
 from repo_to_skill.scanner.filesystem import scan_repository
-from repo_to_skill.skillgen.planner import plan_skill
-from repo_to_skill.skillgen.renderer import render_skill
+from repo_to_skill.skillgen.planner import plan_callable_skills, plan_skill
+from repo_to_skill.skillgen.renderer import render_callable_skills, render_skill
 from repo_to_skill.skillgen.validator import validate_skill
 from repo_to_skill.workspace.store import ArtifactStore
 
@@ -97,11 +101,18 @@ def _validate_string_list(case_name: str, value: Any, field: str) -> None:
         raise _invalid_case(case_name, f"field {field} must contain only strings")
 
 
+_VALID_MODES = ("repo-map", "callable")
+
+
 def _validate_case_schema(case_name: str, data: dict[str, Any]) -> None:
     if "fixture" not in data:
         raise _invalid_case(case_name, "missing required field fixture")
     if not isinstance(data["fixture"], str) or not data["fixture"].strip():
         raise _invalid_case(case_name, "field fixture must be a non-empty string")
+
+    mode = data.get("mode", "repo-map")
+    if not isinstance(mode, str) or mode not in _VALID_MODES:
+        raise _invalid_case(case_name, f"field mode must be one of {', '.join(_VALID_MODES)}")
 
     expected = data.get("expect", {})
     if not isinstance(expected, dict):
@@ -117,6 +128,15 @@ def _validate_case_schema(case_name: str, data: dict[str, Any]) -> None:
     for field in ("analyze_artifacts", "skill_files"):
         if field in files:
             _validate_string_list(case_name, files[field], f"expect.files.{field}")
+
+    callable_expect = expected.get("callable", {})
+    if not isinstance(callable_expect, dict):
+        raise _invalid_case(case_name, "field expect.callable must be a mapping")
+    if "min_interfaces" in callable_expect and not isinstance(callable_expect["min_interfaces"], int):
+        raise _invalid_case(case_name, "field expect.callable.min_interfaces must be an integer")
+    for field in ("stacks", "pack_files"):
+        if field in callable_expect:
+            _validate_string_list(case_name, callable_expect[field], f"expect.callable.{field}")
 
     safety = expected.get("safety", {})
     if not isinstance(safety, dict):
@@ -221,6 +241,12 @@ def run_eval(case_name: str, workspace: Path | None = None) -> EvalResult:
         if analysis_status != "PASS":
             checks.append(EvalCheck("analysis status", False, f"analysis returned {analysis_status}"))
 
+        mode = case.get("mode", "repo-map")
+        if mode == "callable":
+            rendered_root = _run_callable_eval(case, fixture, analysis_root, skill_root, checks)
+            status = "PASS" if all(check.passed for check in checks) else "FAIL"
+            return EvalResult(case_name, status, root, analysis_root, rendered_root, checks)
+
         plan = plan_skill(fixture, analysis_root)
         rendered_skill = render_skill(plan, skill_root)
         skill_files = expected.get("files", {}).get("skill_files", default_skill_files())
@@ -243,3 +269,28 @@ def run_eval(case_name: str, workspace: Path | None = None) -> EvalResult:
     finally:
         if temporary is not None:
             temporary.cleanup()
+
+
+def _run_callable_eval(
+    case: dict[str, Any],
+    fixture: Path,
+    analysis_root: Path,
+    skill_root: Path,
+    checks: list[EvalCheck],
+) -> Path:
+    expected = case.get("expect", {})
+    callable_capabilities = load_json_object(analysis_root / "callable_capabilities.json")
+    checks.append(check_callable_detection(callable_capabilities, case))
+
+    plan = plan_callable_skills(fixture, analysis_root)
+    rendered_packs = render_callable_skills(plan, skill_root)
+    checks.append(check_callable_packs(rendered_packs, case))
+
+    reports = [(pack.name, validate_skill(pack)) for pack in rendered_packs]
+    checks.append(check_callable_validation(reports))
+
+    forbidden_tokens = expected.get("safety", {}).get(
+        "forbidden_output_tokens", ["/media/private", "/home/", "/tmp"]
+    )
+    checks.append(check_no_forbidden_tokens_in_packs(rendered_packs, [str(value) for value in forbidden_tokens]))
+    return skill_root
