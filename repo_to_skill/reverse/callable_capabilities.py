@@ -501,12 +501,24 @@ def _find_ashx_path(sources: list[_Source], class_name: str) -> str:
     return ""
 
 
+def _local_object_types(body: str) -> dict[str, str]:
+    variables: dict[str, str] = {}
+    pattern = r"\b([A-Z][A-Za-z0-9_]*)\s+([a-zA-Z_]\w*)\s*=\s*new\s+\1\s*\("
+    for match in re.finditer(pattern, body):
+        variables[match.group(2)] = match.group(1)
+    return variables
+
+
 def _business_method_call(body: str) -> tuple[str, str]:
-    for match in re.finditer(r"\b([A-Z][A-Za-z0-9_]*)\.([A-Za-z_]\w*)\s*\(", body):
+    local_types = _local_object_types(body)
+    for match in re.finditer(r"\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*\(", body):
         owner, method = match.group(1), match.group(2)
-        if owner in _FRAMEWORK_CALL_OWNERS:
+        resolved_owner = local_types.get(owner, owner)
+        if resolved_owner in _FRAMEWORK_CALL_OWNERS:
             continue
-        return owner, method
+        if not resolved_owner[:1].isupper():
+            continue
+        return resolved_owner, method
     return "", ""
 
 

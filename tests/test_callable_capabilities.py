@@ -159,6 +159,48 @@ def test_detects_ashx_handler_with_resolved_contract(tmp_path: Path) -> None:
     assert day.type == "decimal"
 
 
+def test_detects_ashx_business_method_from_local_service_variable(tmp_path: Path) -> None:
+    handler = """<%@ WebHandler Language="C#" Class="CalculateWorkLoad" %>
+using System.Web;
+using Newtonsoft.Json;
+
+public class CalculateWorkLoad : IHttpHandler
+{
+    public void ProcessRequest(HttpContext context)
+    {
+        KQWorkDateBL kqWorkBll = new KQWorkDateBL();
+        try
+        {
+            BillApplyModel billmodel = JsonConvert.DeserializeObject<BillApplyModel>("{}");
+            BillApplyTimeLenth BillTimeLength = kqWorkBll.CalculateTimeLength(billmodel);
+            context.Response.Write(JsonConvert.SerializeObject(BillTimeLength));
+        }
+        catch (Exception e)
+        {
+            WriteSystemErrorLog.WriteErrLog(e);
+        }
+    }
+
+    public bool IsReusable { get { return false; } }
+}
+"""
+    root = tmp_path / "tms"
+    scan = _write_scan(
+        root,
+        {
+            "Handlers/CalculateWorkLoad.ashx": ("ASP.NET", handler),
+            "BLL/KQWorkDate.cs": ("C#", CS_MODELS),
+        },
+    )
+
+    result = build_callable_capabilities(scan, root)
+
+    assert len(result.interfaces) == 1
+    interface = result.interfaces[0]
+    assert interface.business_method == "KQWorkDateBL.CalculateTimeLength"
+    assert interface.response.model_name == "BillApplyTimeLenth"
+
+
 def test_unresolvable_request_type_degrades_to_todo(tmp_path: Path) -> None:
     handler = """<%@ WebHandler Language="C#" Class="MysteryHandler" %>
 public class MysteryHandler : IHttpHandler
