@@ -4,13 +4,18 @@
 
 **给它一个仓库和一个用户目标，它会找到合适的 API，并把它们生成可调用的 agent skill。**
 
-repo-to-skill 帮助编程代理复用已有系统能力，而不是重新实现一遍。它读取本地仓库，识别可调用的 HTTP 接口，根据用户目标选择相关 API，并生成一个独立的 skill 包：包含工具契约、安全调用脚本和源码级溯源说明。
+repo-to-skill 帮助编程代理复用已有系统能力，而不是重新实现一遍。它**直接从源码读取本地仓库——无需 API 文档或 OpenAPI 规范**，识别可调用的 HTTP 接口，根据用户目标选择相关 API，并生成一个独立、可安装的 skill 包：包含工具契约、安全调用脚本和源码级溯源说明。
 
+- **源码而非文档** —— 通过静态分析从源码逆向出可调用接口，因此对没有任何 API 文档的遗留系统同样有效。
 - **目标驱动** —— 从用户目标开始，而不是手工挑接口。
 - **可调用** —— 生成的 skill 包含工具契约和 `scripts/call_*.py`，可对接真实 HTTP 系统。
-- **面向 agent** —— 可以在编程代理工作流中作为 skill-builder 使用，也可以直接调用 CLI。
+- **可安装** —— `--install` 直接把生成的 skill 放进 `~/.claude/skills` 和 `~/.agents/skills`，跨 agent 即装即用。
 - **不侵入目标仓库** —— 只读取目标仓库，把产物写到外部目录，不修改目标仓库。
 - **可审计** —— 每个入选 API 都有 route、handler、业务方法、字段契约、得分和源码依据。
+
+## 它有何不同
+
+给 agent 添加新 skill 的常见做法，要么是**手工编写**，要么是从 **API 文档 / OpenAPI 规范**生成。repo-to-skill 则从**源码**出发：静态识别一个代码库已经暴露的 HTTP 接口，把选中的接口变成可调用的 skill——每个字段都能追溯回源码。这让它正好能用在那些缺少文档的系统上：较老的内部与企业服务。
 
 ## 为什么需要它
 
@@ -67,15 +72,7 @@ python -m pip install -e .
 repo-to-skill --help
 ```
 
-生成只读仓库地图：
-
-```bash
-repo-to-skill compose ./examples/tiny-python-app \
-  --workdir ./.runs/tiny-python-analysis \
-  --output ./.runs/tiny-python-skill
-```
-
-根据仓库和目标生成 callable 组合 skill：
+根据仓库和目标生成 callable 组合 skill，并直接安装供 agent 使用：
 
 ```bash
 repo-to-skill analyze ./my-legacy-system --output ./.runs/my-system-analysis
@@ -85,7 +82,18 @@ repo-to-skill generate ./my-legacy-system \
   --output ./.runs/my-system-skill \
   --mode callable-bundle \
   --need "employee onboarding and job transfer workflows" \
-  --max-interfaces 12
+  --max-interfaces 12 \
+  --install
+```
+
+加上 `--install`，通过校验的 bundle 会被拷贝进 `~/.claude/skills/` 和 `~/.agents/skills/`，编程代理可以立刻识别使用。不加 `--install` 则只在 `--output` 下生成可审阅的 skill 包。
+
+或生成只读仓库地图 skill：
+
+```bash
+repo-to-skill compose ./examples/tiny-python-app \
+  --workdir ./.runs/tiny-python-analysis \
+  --output ./.runs/tiny-python-skill
 ```
 
 校验生成的 bundle：
