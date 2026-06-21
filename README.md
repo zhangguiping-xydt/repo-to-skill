@@ -2,124 +2,151 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-**Give your AI coding agent a map of the repository before it starts editing.**
+**Give it a repo and a user goal. It finds the right APIs and turns them into callable agent skills.**
 
-repo-to-skill is a local-first CLI that reads a local repository and generates a separate, portable skill pack — project map, key modules, module relationships, task entry points, and validation guidance — so an agent starts oriented instead of guessing.
+repo-to-skill helps coding agents reuse existing software instead of reimplementing it. It reads a local repository, detects callable HTTP interfaces, selects the APIs that match a user goal, and generates a separate skill package with tool schemas, safe caller scripts, and source-level provenance.
 
-![Before and after: an AI coding agent working with and without a repo map](docs/assets/repo-to-skill-before-after.svg)
+- **Goal-oriented** — start from a user goal, not a hand-picked API list.
+- **Callable** — generated skills include tool contracts and `scripts/call_*.py` helpers for live HTTP systems.
+- **Agent-ready** — use it as a skill-builder inside any coding-agent workflow, or call the CLI directly.
+- **Non-invasive** — it reads the target repository and writes output elsewhere; it never modifies the target repo.
+- **Auditable** — every selected API is explained with route, handler, business method, field contract, score, and source reference.
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](pyproject.toml)
-[![Release](https://img.shields.io/badge/release-v0.1.1-2EA9C0.svg)](https://github.com/zhangguiping-xydt/repo-to-skill/releases/latest)
+## Why this exists
 
-- **Local-first** — your source never leaves your machine; no remote services.
-- **Non-invasive** — it never modifies the target repository.
-- **Deterministic** — static analysis only; no LLM or vector database in the core.
-- **Proven at scale** — verified on a large repository with 4,459 files and about 940k scanned lines.
+Most organizations already have valuable behavior locked inside older systems: HR workflows, finance approvals, internal operations, customer support tools, scheduling engines, reporting endpoints, and more. Coding agents can read code, but reading code is not the same as safely reusing the live system behavior.
 
-```bash
-pip install -e .
-repo-to-skill compose ../my-app --output ../my-app-skill
+repo-to-skill turns those existing interfaces into callable agent skills:
+
+```text
+local repository + user goal
+  -> static analysis
+  -> callable API detection
+  -> goal-based interface selection
+  -> one focused skill bundle
+  -> validated tools and dry-run callers
 ```
 
-## Overview
-
-![repo-to-skill local workflow: local repo, read-only scan, reasoning map, skill pack](docs/assets/repo-to-skill-overview.svg)
-
-The project is built for local scanning: it reads files from a repository on your machine, writes analysis artifacts and generated skill output to directories you choose, and does not upload source code. It does not require a remote database. It also does not use a vector database by default; a vector index may be explored later as an optional extension, but it is not an MVP dependency.
+The result is not a patch to the original repository. It is a separate skill package that another agent can review, import, and call.
 
 ## What it generates
 
-repo-to-skill reads a target repository without modifying it, then generates a separate skill package that an AI coding agent can review and import:
+repo-to-skill can generate two kinds of skills.
 
-- `SKILL.md` for the human-readable project briefing.
-- `manifest.yaml` for package metadata and safety boundaries.
-- `references/project-map.md` for modules, representative paths, relationships, task entry points, and validation guidance.
-- `references/capability-graph.md` for the capability graph.
-- `references/skill-spec.md` for the skill spec.
-- `references/confidence-report.md` for capability evidence and verification notes.
-- `scripts/inspect_repo.py` as a read-only helper; generated helpers do not spawn shell commands.
+### 1. Repository map skill
 
-The analysis artifact chain includes `scan.json`, `profile.json`, `capability_evidence.json`, `capability_graph.json`, `skill_spec.yaml`, `verification_report.json`, and `confidence-report.md`.
+A read-only orientation pack for a coding agent:
 
-## Visual demo assets
+- `SKILL.md` — human-readable project briefing.
+- `manifest.yaml` — metadata and safety boundaries.
+- `references/project-map.md` — modules, representative paths, relationships, task entry points, and validation guidance.
+- `references/capability-graph.md` — capability graph.
+- `references/skill-spec.md` — generated skill specification.
+- `references/confidence-report.md` — evidence and verification notes.
+- `scripts/inspect_repo.py` — read-only helper script.
 
-The launch video sources live in [`designs/repo-to-skill-launch`](designs/repo-to-skill-launch/). Large rendered videos are attached to GitHub Releases instead of committed directly into source history.
+### 2. Callable bundle skill
 
-- [Watch the launch video](https://github.com/zhangguiping-xydt/repo-to-skill/releases/download/v0.1.0/repo-to-skill-launch.mp4)
-- [Open the release page](https://github.com/zhangguiping-xydt/repo-to-skill/releases/tag/v0.1.0)
+A goal-oriented skill that wraps selected live HTTP APIs:
 
-## Installation
+- `SKILL.md` — when to use the bundle and what tools it contains.
+- `manifest.yaml` — `kind: callable-bundle`, selection summary, safety boundaries.
+- `tools/*.tool.yaml` — one machine-readable tool contract per selected API.
+- `scripts/call_*.py` — one safe caller per selected API.
+- `references/capability-selection.md` — why each API was selected for the user goal.
+- `references/capability-source.md` — route, handler, business method, input fields, output fields, and source provenance.
 
-From a source checkout:
+Generated callers default to preview mode. They only send a request when the user sets the endpoint environment variable and passes `--execute`. Tokens are read from environment variables and redacted in previews.
+
+## Quick start
+
+Install from a source checkout:
 
 ```bash
 python -m pip install -e .
 repo-to-skill --help
 ```
 
-For development checks:
+Generate a read-only repo map:
 
 ```bash
-python -m pip install -e .[dev]
-python -m pytest
+repo-to-skill compose ./examples/tiny-python-app \
+  --workdir ./.runs/tiny-python-analysis \
+  --output ./.runs/tiny-python-skill
 ```
 
-## Quick start from a source checkout
-
-Use the packaged tiny example to see the complete local flow:
+Generate a callable skill bundle from a repository and a goal:
 
 ```bash
-repo-to-skill doctor
-repo-to-skill analyze ./examples/tiny-python-app --output ./.runs/tiny-python
-repo-to-skill generate ./examples/tiny-python-app --analysis ./.runs/tiny-python --output ./.runs/tiny-python-skill
-repo-to-skill validate ./.runs/tiny-python-skill
-repo-to-skill compose ./examples/tiny-python-app --output ./.runs/tiny-python-composed-skill --workdir ./.runs/tiny-python-compose
-repo-to-skill eval --case tiny-python
+repo-to-skill analyze ./my-legacy-system --output ./.runs/my-system-analysis
+
+repo-to-skill generate ./my-legacy-system \
+  --analysis ./.runs/my-system-analysis \
+  --output ./.runs/my-system-skill \
+  --mode callable-bundle \
+  --need "employee onboarding and job transfer workflows" \
+  --max-interfaces 12
 ```
 
-## Use your own repository
-
-Keep generated analysis and skill output outside the target repository:
+Validate the generated bundle:
 
 ```bash
-mkdir -p ../repo-to-skill-runs
-repo-to-skill compose ../my-app \
-  --workdir ../repo-to-skill-runs/my-app-analysis \
-  --output ../repo-to-skill-runs/my-app-skill
-repo-to-skill validate ../repo-to-skill-runs/my-app-skill
+repo-to-skill validate ./.runs/my-system-skill/<bundle-name>
 ```
 
-Review `SKILL.md`, `manifest.yaml`, and `references/confidence-report.md` before importing the generated skill pack into any AI coding agent environment.
+## Agent skill workflow
+
+repo-to-skill itself can be used as a skill-builder by a coding agent:
+
+1. Run `analyze` on the target repository.
+2. Read `callable_capabilities.json`.
+3. Translate the user goal into a small set of relevant interface slugs.
+4. Write a selection file:
+
+   ```json
+   {
+     "need_summary": "Generate a callable skill for employee onboarding and job transfer workflows.",
+     "selected_slugs": ["employee-entry", "job-transfer", "position-change"],
+     "selection_source": "agentic"
+   }
+   ```
+
+5. Generate a bundle from the verified selection:
+
+   ```bash
+   repo-to-skill generate ./my-legacy-system \
+     --analysis ./.runs/my-system-analysis \
+     --output ./.runs/my-system-skill \
+     --mode callable-bundle \
+     --selection-json ./.runs/selection.json
+   ```
+
+The CLI still validates every selected slug. If an agent suggests a slug that does not exist in `callable_capabilities.json`, generation fails instead of inventing a tool.
 
 ## Commands
 
-- `doctor` checks the local Python/package environment only.
-- `analyze` performs local scanning and writes the artifact chain.
-- `generate` turns a complete artifact chain into a skill directory.
-- `validate` checks the generated skill shape and safety boundaries.
-- `compose` runs analyze -> generate -> validate locally without runtime registration.
-- `eval` runs deterministic local eval cases such as the packaged `tiny-python` case.
+- `doctor` checks the local Python/package environment.
+- `analyze` scans a local repository and writes analysis artifacts.
+- `generate` turns analysis artifacts into a skill directory.
+- `validate` checks generated skill shape and safety boundaries.
+- `compose` runs analyze -> generate -> validate for read-only repo map skills.
+- `eval` runs deterministic local eval cases.
 
 ## Safety model
 
-repo-to-skill does not modify the target repository. The analyze/generate output must be outside the target repository so generated artifacts never become accidental source changes.
+repo-to-skill does not modify the target repository. Keep analysis and skill output outside the target repository so generated artifacts never become accidental source changes.
 
-Generated helper scripts are read-only: no network, no dependency installation, and generated helpers do not spawn shell commands. They inspect checked-in files and render human-reviewable references.
+Read-only repo map helpers do not use network access. Callable bundle helpers can call live HTTP systems, but only with explicit endpoint configuration and `--execute`. They do not install dependencies, do not spawn shell commands, and do not write to the target repository.
 
 ## Scale and limits
 
 repo-to-skill is designed for small to large local repositories. It has been verified on a large enterprise repository with 4,459 scanned files, about 940k scanned lines, and about 569k source lines.
 
-There is no hard total-line limit. Actual runtime depends on file count, disk speed, and how much generated content is present. The scanner skips binary files, symlinks, sensitive files, generated artifacts, dependency folders, local run artifacts, and individual files larger than 1 MiB.
+There is no hard total-line limit. Runtime depends on file count, disk speed, and generated content. The scanner skips binary files, symlinks, sensitive files, generated artifacts, dependency folders, local run artifacts, and individual files larger than 1 MiB.
 
 ## Compatibility
 
-The generated package is intentionally vendor-neutral. Different tools can read the Markdown references directly, use a command-aware adapter, or implement a native package adapter. See the adapter contract in [Compatibility](docs/compatibility.md) and [Adapters](adapters/README.md).
-
-## Runtime boundary
-
-The open-source version adopts useful repository knowledge ideas: artifact chain, capability evidence, capability graph, skill spec, and verification report. It does not connect to CapabilityRegistry/FastAPI/runtime hot registration, and it is not multi-agent-dev external_skills hot loading.
+The generated package is intentionally vendor-neutral. Different coding-agent tools can read the Markdown references directly, use a command-aware adapter, or implement a native package adapter. See [Compatibility](docs/compatibility.md) and [Adapters](adapters/README.md).
 
 ## More documentation
 
