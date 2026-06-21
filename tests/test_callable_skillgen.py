@@ -1,0 +1,312 @@
+from __future__ import annotations
+
+import ast
+import hashlib
+import importlib.util
+import io
+import json
+from contextlib import redirect_stdout
+from pathlib import Path
+
+import yaml
+
+from repo_to_skill.models import FileRecord, ScanResult
+from repo_to_skill.reverse.callable_capabilities import build_callable_capabilities
+from repo_to_skill.skillgen.planner import plan_callable_skills
+from repo_to_skill.skillgen.renderer import render_callable_skills
+
+
+# --------------------------------------------------------------------------- #
+# Synthetic sources (mirror the TMS CalculateWorkLoad demo + an unresolved case)
+# --------------------------------------------------------------------------- #
+
+ASHX = """<%@ WebHandler Language="C#" Class="CalculateWorkLoad" %>
+using System;
+using System.Web;
+using System.IO;
+using Newtonsoft.Json;
+
+public class CalculateWorkLoad : IHttpHandler
+{
+    public void ProcessRequest(HttpContext context)
+    {
+        string body = new StreamReader(context.Request.InputStream).ReadToEnd();
+        BillApplyModel model = JsonConvert.DeserializeObject<BillApplyModel>(body);
+        BillApplyTimeLenth result = KQWorkDateBL.CalculateTimeLength(model);
+        context.Response.Write(JsonConvert.SerializeObject(result));
+    }
+
+    public bool IsReusable { get { return false; } }
+}
+"""
+
+CS_MODELS = """using System;
+
+public class BillApplyModel
+{
+    public string EmployeeInfo { get; set; }
+    public DateTime ApplyStartDateTime { get; set; }
+    public DateTime ApplyEndDateTime { get; set; }
+    public bool IsContainHoliday { get; set; }
+    public int BillType { get; set; }
+}
+
+public class BillApplyTimeLenth
+{
+    public decimal TimeLenthUintDay { get; set; }
+    public decimal TimeLenthUintHour { get; set; }
+}
+
+public class KQWorkDateBL
+{
+    public BillApplyTimeLenth CalculateTimeLength(BillApplyModel model)
+    {
+        return new BillApplyTimeLenth();
+    }
+}
+"""
+
+MYSTERY_ASHX = """<%@ WebHandler Language="C#" Class="MysteryHandler" %>
+public class MysteryHandler : IHttpHandler
+{
+    public void ProcessRequest(HttpContext context)
+    {
+        string body = new StreamReader(context.Request.InputStream).ReadToEnd();
+        UnknownPayload model = JsonConvert.DeserializeObject<UnknownPayload>(body);
+        context.Response.Write("ok");
+    }
+    public bool IsReusable { get { return false; } }
+}
+"""
+
+# tokens a callable caller must never contain
+_BANNED_SCRIPT_TOKENS = (
+    "import requests",
+    "subprocess",
+    "socket",
+    "http.client",
+    "os.system",
+    "os.popen",
+    "shutil",
+    "eval(",
+    "exec(",
+)
+
+
+def _write_scan(root: Path, files: dict[str, tuple[str, str]]) -> ScanResult:
+    records: list[FileRecord] = []
+    for rel, (language, content) in files.items():
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        records.append(
+            FileRecord(
+                path=rel,
+                size=len(content.encode("utf-8")),
+                line_count=content.count("\n"),
+                sha256=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                language=language,
+                role="source",
+            )
+        )
+    return ScanResult(root=str(root), files=records)
+
+
+def _prepare(tmp_path: Path, files: dict[str, tuple[str, str]]) -> tuple[Path, Path]:
+    """Build a repo + analysis run dir and return (target, analysis_root)."""
+    repo = tmp_path / "repo"
+    scan = _write_scan(repo, files)
+    capabilities = build_callable_capabilities(scan, repo)
+
+    analysis = tmp_path / "analysis"
+    analysis.mkdir()
+    (analysis / "scan.json").write_text(json.dumps(scan.model_dump()), encoding="utf-8")
+    (analysis / "profile.json").write_text(json.dumps({"name": "tms-atm"}), encoding="utf-8")
+    (analysis / "callable_capabilities.json").write_text(
+        json.dumps(capabilities.model_dump()), encoding="utf-8"
+    )
+    return repo, analysis
+
+
+def _load_main(script_path: Path):
+    spec = importlib.util.spec_from_file_location(f"callable_{script_path.stem}", script_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.main
+
+
+# --------------------------------------------------------------------------- #
+# Planner
+# --------------------------------------------------------------------------- #
+
+
+def test_plan_callable_skills_reads_capability_artifact(tmp_path: Path) -> None:
+    repo, analysis = _prepare(
+        tmp_path,
+        {
+            "Handlers/CalculateWorkLoad.ashx": ("ASP.NET", ASHX),
+            "BLL/KQWorkDate.cs": ("C#", CS_MODELS),
+        },
+    )
+
+    plan = plan_callable_skills(repo, analysis)
+
+    # the capability set carries its own detected project name (the repo dir)
+    assert plan.project_name == "repo"
+    assert len(plan.interfaces) == 1
+    assert plan.interfaces[0]["slug"] == "calculate-work-load"
+
+
+# --------------------------------------------------------------------------- #
+# Renderer — resolved contract
+# --------------------------------------------------------------------------- #
+
+
+def test_render_callable_skill_resolved_contract(tmp_path: Path) -> None:
+    repo, analysis = _prepare(
+        tmp_path,
+        {
+            "Handlers/CalculateWorkLoad.ashx": ("ASP.NET", ASHX),
+            "BLL/KQWorkDate.cs": ("C#", CS_MODELS),
+        },
+    )
+    plan = plan_callable_skills(repo, analysis)
+
+    output = tmp_path / "skill"
+    packs = render_callable_skills(plan, output)
+
+    assert len(packs) == 1
+    pack = packs[0]
+    assert pack.name == "calculate-work-load"
+
+    # every required file is present
+    assert (pack / "SKILL.md").exists()
+    assert (pack / "manifest.yaml").exists()
+    assert (pack / "tools" / "calculate_work_load.tool.yaml").exists()
+    assert (pack / "references" / "capability-source.md").exists()
+    script_path = pack / "scripts" / "call_calculate_work_load.py"
+    assert script_path.exists()
+
+    # manifest is valid YAML with the callable runtime/auth/safety contract
+    manifest = yaml.safe_load((pack / "manifest.yaml").read_text(encoding="utf-8"))
+    assert manifest["kind"] == "callable-capability"
+    assert manifest["runtime"]["requires_live_system"] is True
+    assert manifest["runtime"]["transport"] == "http"
+    assert manifest["runtime"]["method"] == "POST"
+    endpoint_env = manifest["runtime"]["endpoint_env"]
+    token_env = manifest["auth"]["token_env"]
+    assert endpoint_env == "CALCULATE_WORK_LOAD_ENDPOINT"
+    assert endpoint_env.endswith("_ENDPOINT")
+    assert token_env.endswith("_TOKEN")
+    assert manifest["auth"]["required"] is True
+    assert manifest["auth"]["type"] == "bearer"
+    assert manifest["safety"]["dry_run_default"] is True
+    assert manifest["safety"]["network"] == "requires-explicit-endpoint"
+    assert manifest["safety"]["dependency_install"] == "disabled"
+    assert manifest["safety"]["target_repository_writes"] == "disabled"
+
+    # tool.yaml invocation must agree with the manifest, schemas keep legacy spelling
+    tool = yaml.safe_load(
+        (pack / "tools" / "calculate_work_load.tool.yaml").read_text(encoding="utf-8")
+    )
+    assert tool["invocation"]["method"] == "POST"
+    assert tool["invocation"]["endpoint_env"] == endpoint_env
+    assert tool["invocation"]["auth"]["token_env"] == token_env
+    assert "EmployeeInfo" in tool["input_schema"]["properties"]
+    assert "TimeLenthUintDay" in tool["output_schema"]["properties"]  # typo preserved verbatim
+    assert tool["mapping"]["input_model"] == "BillApplyModel"
+
+    # script is valid Python and honest about safety
+    source = script_path.read_text(encoding="utf-8")
+    ast.parse(source)
+    assert f'ENDPOINT_ENV = "{endpoint_env}"' in source
+    assert f'TOKEN_ENV = "{token_env}"' in source
+    assert "<redacted>" in source
+    assert "urllib.request" in source
+    assert "urllib.error" in source
+    assert 'payload["EmployeeInfo"] = args.employee_info' in source
+    for banned in _BANNED_SCRIPT_TOKENS:
+        assert banned not in source, f"callable script must not contain {banned!r}"
+
+    # no machine paths leak into any generated file
+    for file in pack.rglob("*"):
+        if file.is_file():
+            text = file.read_text(encoding="utf-8")
+            assert "/media/" not in text
+            assert "/home/" not in text
+            assert "/tmp/" not in text
+
+    # the caller previews offline (no endpoint env, no --execute) and never sends
+    main = _load_main(script_path)
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = main(
+            [
+                "--employee-info",
+                "E1",
+                "--apply-start-date-time",
+                "2026-01-01",
+                "--apply-end-date-time",
+                "2026-01-02",
+                "--is-contain-holiday",
+                "false",
+                "--bill-type",
+                "1",
+            ]
+        )
+    out = buffer.getvalue()
+    assert rc == 0
+    assert "[preview]" in out
+    assert "EmployeeInfo" in out  # the body it would send mirrors the source field
+
+
+# --------------------------------------------------------------------------- #
+# Renderer — unresolved contract degrades to a --json-body caller
+# --------------------------------------------------------------------------- #
+
+
+def test_render_callable_skill_unresolved_uses_json_body(tmp_path: Path) -> None:
+    repo, analysis = _prepare(tmp_path, {"Mystery.ashx": ("ASP.NET", MYSTERY_ASHX)})
+    plan = plan_callable_skills(repo, analysis)
+
+    packs = render_callable_skills(plan, tmp_path / "skill")
+    assert len(packs) == 1
+    pack = packs[0]
+    assert pack.name == "mystery-handler"
+
+    script_path = pack / "scripts" / "call_mystery_handler.py"
+    source = script_path.read_text(encoding="utf-8")
+    ast.parse(source)
+    assert "--json-body" in source
+    assert "json.loads(args.json_body)" in source
+
+    main = _load_main(script_path)
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = main(["--json-body", "{}"])
+    assert rc == 0
+    assert "[preview]" in buffer.getvalue()
+
+
+# --------------------------------------------------------------------------- #
+# Renderer — one pack per interface, unique directories
+# --------------------------------------------------------------------------- #
+
+
+def test_render_callable_skills_one_pack_per_interface(tmp_path: Path) -> None:
+    repo, analysis = _prepare(
+        tmp_path,
+        {
+            "Handlers/CalculateWorkLoad.ashx": ("ASP.NET", ASHX),
+            "BLL/KQWorkDate.cs": ("C#", CS_MODELS),
+            "Mystery.ashx": ("ASP.NET", MYSTERY_ASHX),
+        },
+    )
+    plan = plan_callable_skills(repo, analysis)
+
+    packs = render_callable_skills(plan, tmp_path / "skill")
+
+    assert len(packs) == 2
+    names = {pack.name for pack in packs}
+    assert names == {"calculate-work-load", "mystery-handler"}

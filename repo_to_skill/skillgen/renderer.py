@@ -7,7 +7,8 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from repo_to_skill.skillgen.planner import SkillPlan
+from repo_to_skill.reverse.callable_capabilities import json_type_for
+from repo_to_skill.skillgen.planner import CallableSkillPlan, SkillPlan
 
 
 _ABSOLUTE_PATH_PATTERNS = (
@@ -371,3 +372,220 @@ def render_skill(plan: SkillPlan, output: Path) -> Path:
         destination.write_text(rendered, encoding="utf-8")
 
     return output_root
+
+
+_SCHEMA_TYPES = {"string", "integer", "number", "boolean", "array", "object"}
+_METHOD_VERB = {
+    "GET": "Read from",
+    "POST": "Invoke",
+    "PUT": "Update through",
+    "PATCH": "Update through",
+    "DELETE": "Delete through",
+}
+
+
+def _callable_kebab(value: str) -> str:
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", value)
+    spaced = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", spaced)
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "-", spaced).strip("-").lower()
+    return re.sub(r"-+", "-", cleaned)
+
+
+def _python_identifier(value: str) -> str:
+    ident = _callable_kebab(value).replace("-", "_")
+    if not ident:
+        return "value"
+    if ident[0].isdigit():
+        return f"v_{ident}"
+    return ident
+
+
+def _py_literal(value: str) -> str:
+    """Sanitize a value for embedding inside a double-quoted Python/JSON string."""
+    return _inline_text(value).replace("\\", "").replace('"', "'")
+
+
+def _schema_type(raw_type: str) -> tuple[str, bool]:
+    """Map a source type onto a JSON-schema type, flagging when it is a fallback."""
+    kind = json_type_for(raw_type)
+    if kind in _SCHEMA_TYPES:
+        return kind, False
+    return "string", True
+
+
+def _callable_args(request: dict[str, Any]) -> list[dict[str, Any]]:
+    args: list[dict[str, Any]] = []
+    used: set[str] = set()
+    for field in request.get("fields") or []:
+        if not isinstance(field, dict):
+            continue
+        wire = _py_literal(str(field.get("name") or ""))
+        if not wire:
+            continue
+        dest = _python_identifier(wire)
+        if dest in used:
+            continue
+        used.add(dest)
+        cli = "--" + _callable_kebab(wire)
+        raw_type = _py_literal(str(field.get("type") or ""))
+        schema_type, _ = _schema_type(str(field.get("type") or ""))
+        required = bool(field.get("required"))
+        help_text = _py_literal(f"{wire} ({raw_type or schema_type}).")
+        pieces = [f'"{cli}"', f'dest="{dest}"']
+        if required:
+            pieces.append("required=True")
+        if schema_type == "boolean":
+            pieces.append("type=parse_bool")
+            if not required:
+                pieces.append("default=False")
+        elif schema_type == "integer":
+            pieces.append("type=int")
+        elif schema_type == "number":
+            pieces.append("type=float")
+        pieces.append(f'help="{help_text}"')
+        args.append(
+            {
+                "wire": wire,
+                "dest": dest,
+                "cli": cli,
+                "required": required,
+                "is_bool": schema_type == "boolean",
+                "add_argument": "parser.add_argument(" + ", ".join(pieces) + ")",
+            }
+        )
+    return args
+
+
+def _callable_schema_fields(contract: dict[str, Any]) -> list[dict[str, Any]]:
+    fields: list[dict[str, Any]] = []
+    used: set[str] = set()
+    for field in contract.get("fields") or []:
+        if not isinstance(field, dict):
+            continue
+        wire = _py_literal(str(field.get("name") or ""))
+        if not wire or wire in used:
+            continue
+        used.add(wire)
+        raw_type = str(field.get("type") or "")
+        schema_type, _ = _schema_type(raw_type)
+        fields.append(
+            {
+                "wire": wire,
+                "schema_type": schema_type,
+                "required": bool(field.get("required")),
+                "is_bool": schema_type == "boolean",
+                "description": _inline_text(f"{wire} ({_inline_text(raw_type) or 'type unknown'})."),
+            }
+        )
+    return fields
+
+
+def _callable_sample_command(module: str, args: list[dict[str, Any]]) -> str:
+    parts = [f"python scripts/call_{module}.py"]
+    required_args = [arg for arg in args if arg["required"]]
+    if required_args:
+        for arg in required_args:
+            placeholder = "false" if arg["is_bool"] else "<" + arg["dest"].upper() + ">"
+            parts.append(f"{arg['cli']} {placeholder}")
+    elif not args:
+        parts.append("--json-body '{}'")
+    return " \\\n  ".join(parts)
+
+
+def _callable_context(interface: dict[str, Any], project_name: str, slug: str, module: str) -> dict[str, Any]:
+    request = interface.get("request") if isinstance(interface.get("request"), dict) else {}
+    response = interface.get("response") if isinstance(interface.get("response"), dict) else {}
+    http_method = _inline_text(str(interface.get("http_method") or "POST")).upper() or "POST"
+    framework = _inline_text(str(interface.get("framework") or "http"))
+    stack = _inline_text(str(interface.get("stack") or "unknown"))
+    route = _inline_text(str(interface.get("route") or "/"))
+    handler_symbol = _inline_text(str(interface.get("handler_symbol") or slug))
+    handler_path = _inline_text(str(interface.get("handler_path") or ""))
+    business_method = _inline_text(str(interface.get("business_method") or ""))
+    endpoint_env = _inline_text(str(interface.get("endpoint_env") or "")) or f"{module.upper()}_ENDPOINT"
+    token_env = _inline_text(str(interface.get("token_env") or "")) or f"{module.upper()}_TOKEN"
+    side_effects = _inline_text(str(interface.get("side_effects") or "unknown")) or "unknown"
+
+    args = _callable_args(request)
+    request_fields = _callable_schema_fields(request)
+    response_fields = _callable_schema_fields(response)
+    request_required = [field["wire"] for field in request_fields if field["required"]]
+
+    verb = _METHOD_VERB.get(http_method, "Call")
+    summary = _inline_text(f"{verb} the {framework} {http_method} interface {handler_symbol} of {project_name}.")
+    description = _inline_text(
+        f"Call the legacy {framework} {http_method} HTTP interface '{handler_symbol}' "
+        f"(route {route}) exposed by the {project_name} repository. Argument names mirror the "
+        "source models so the JSON contract stays faithful; field names are not renamed."
+    )
+
+    return {
+        "project_name": project_name,
+        "slug": slug,
+        "module": module,
+        "tool_name": module,
+        "summary": summary,
+        "description": description,
+        "stack": stack,
+        "framework": framework,
+        "http_method": http_method,
+        "route": route,
+        "handler_symbol": handler_symbol,
+        "handler_path": handler_path,
+        "business_method": business_method,
+        "endpoint_env": endpoint_env,
+        "token_env": token_env,
+        "side_effects": side_effects,
+        "request_model": _inline_text(str(request.get("model_name") or "unknown")),
+        "response_model": _inline_text(str(response.get("model_name") or "unknown")),
+        "request_unresolved": bool(request.get("unresolved")),
+        "response_unresolved": bool(response.get("unresolved")),
+        "request_notes": _inline_list(request.get("notes")),
+        "response_notes": _inline_list(response.get("notes")),
+        "args": args,
+        "has_args": bool(args),
+        "request_fields": request_fields,
+        "response_fields": response_fields,
+        "request_required": request_required,
+        "sample_command": _callable_sample_command(module, args),
+        "generated_by": "repo-to-skill",
+    }
+
+
+def render_callable_skills(plan: CallableSkillPlan, output: Path) -> list[Path]:
+    """Render one callable-capability skill pack per detected HTTP interface."""
+    output_root = output.expanduser().resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    env = _template_env()
+    project_name = _inline_text(plan.project_name, "local-repository")
+    created: list[Path] = []
+    used_dirs: dict[str, int] = {}
+    for interface in plan.interfaces:
+        slug = _safe_name(str(interface.get("slug") or "interface"))
+        count = used_dirs.get(slug, 0)
+        used_dirs[slug] = count + 1
+        if count:
+            slug = f"{slug}-{count + 1}"
+        module = _python_identifier(slug)
+        context = _callable_context(interface, project_name, slug, module)
+
+        skill_root = output_root / slug
+        (skill_root / "scripts").mkdir(parents=True, exist_ok=True)
+        (skill_root / "tools").mkdir(parents=True, exist_ok=True)
+        (skill_root / "references").mkdir(parents=True, exist_ok=True)
+
+        outputs = {
+            "SKILL.md": "callable/SKILL.md.j2",
+            "manifest.yaml": "callable/manifest.yaml.j2",
+            f"tools/{module}.tool.yaml": "callable/tools/tool.yaml.j2",
+            "references/capability-source.md": "callable/references/capability-source.md.j2",
+            f"scripts/call_{module}.py": "callable/scripts/call.py.j2",
+        }
+        for relative_path, template_name in outputs.items():
+            rendered = env.get_template(template_name).render(**context)
+            rendered = _strip_machine_paths(rendered)
+            (skill_root / relative_path).write_text(rendered, encoding="utf-8")
+        created.append(skill_root)
+
+    return sorted(created)

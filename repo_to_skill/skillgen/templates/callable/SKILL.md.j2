@@ -1,0 +1,60 @@
+---
+name: {{ slug }}
+description: {{ description | tojson }}
+kind: callable-capability
+---
+
+# {{ project_name }} · {{ handler_symbol }}
+
+This skill exposes ONE capability that already exists inside the {{ project_name }}
+system. The capability lives behind an HTTP interface; this pack turns it into
+something an AI coding agent can call directly instead of reimplementing it.
+
+- Stack: {{ stack }} ({{ framework }})
+- Interface: `{{ http_method }} {{ route }}`
+- Handler: `{{ handler_symbol }}`
+
+## When to use
+
+- You need the result this interface computes or returns, and the live system is
+  the source of truth for that answer.
+- Reproducing the logic yourself would risk drifting from the real system.
+
+## When NOT to use
+
+- The endpoint is not reachable or you have no credentials. This skill calls a
+  live service; it cannot answer offline.
+- You only need static knowledge about the code — use a read-only repo map pack.
+
+## How to call
+
+The capability runs in a live system, so this pack ships a real caller:
+
+```bash
+{{ sample_command }}
+```
+
+- The endpoint and auth token come from the environment (`{{ endpoint_env }}`,
+  `{{ token_env }}`). They are never hard-coded.
+- The caller previews by default. It only sends a request when you pass
+  `--execute` AND `{{ endpoint_env }}` is set. With `--dry-run`, or with no
+  endpoint configured, it prints the exact request it would send and touches
+  nothing.
+
+## Input / Output contract
+
+See `tools/{{ module }}.tool.yaml` for the full machine-readable contract
+(input schema, output schema, how to invoke). That file is what an agent runtime
+loads to know this tool exists and how to use it.
+
+## Where this comes from
+
+See `references/capability-source.md`. Every field maps back to detected source
+in the analyzed repository, so a maintainer can verify the wrapper is faithful.
+
+## Safety
+
+This is a **callable** skill, not a read-only knowledge pack. It reaches a live
+external system over the network and requires credentials. Run it only against a
+system you are authorized to call, and not against production without
+authorization. The caller defaults to a dry-run preview and redacts the token.

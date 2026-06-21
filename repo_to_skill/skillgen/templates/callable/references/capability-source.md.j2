@@ -1,0 +1,56 @@
+# Capability source
+
+This skill wraps a capability that already exists in the analyzed repository.
+Every field below maps to detected source so a maintainer can confirm the
+wrapper is faithful and nothing was invented.
+
+## HTTP entry point
+
+- Stack: {{ stack }}
+- Framework: {{ framework }}
+- Method: {{ http_method }}
+- Route: `{{ route }}`
+- Handler: `{{ handler_symbol }}`
+{% if handler_path %}
+- Source file: `{{ handler_path }}`
+{% endif %}
+{% if business_method %}
+- Business method: `{{ business_method }}`
+{% endif %}
+
+## Input model — `{{ request_model }}`
+
+{% if request_fields %}
+| Field | JSON type | Required |
+|-------|-----------|----------|
+{% for field in request_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} | {{ "yes" if field.required else "no" }} |
+{% endfor %}
+{% else %}
+The request payload could not be resolved from the scanned sources.
+{% for note in request_notes %}
+- {{ note }}
+{% endfor %}
+Pass a raw JSON body with `--json-body` until the contract is confirmed.
+{% endif %}
+
+## Output model — `{{ response_model }}`
+
+{% if response_fields %}
+| Field | JSON type |
+|-------|-----------|
+{% for field in response_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} |
+{% endfor %}
+{% else %}
+The response payload could not be resolved from the scanned sources.
+{% for note in response_notes %}
+- {{ note }}
+{% endfor %}
+{% endif %}
+
+## Note on faithfulness
+
+The skill keeps the original field names exactly as they appear in source so the
+JSON the caller sends and receives matches the interface. Renaming fields for
+readability would break the wire contract.

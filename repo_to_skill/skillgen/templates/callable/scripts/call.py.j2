@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Call the {{ framework }} {{ http_method }} interface {{ handler_symbol }} of {{ project_name }}.
+
+This is a CALLABLE skill helper. Unlike a read-only inspection script, it invokes
+a live interface and returns its answer to the agent.
+
+Safety choices that keep this honest:
+  * The endpoint and auth token are read from the environment ({{ endpoint_env }},
+    {{ token_env }}). They are never hard-coded.
+  * It previews by default. It only sends a request when --execute is passed and
+    the endpoint is configured. With --dry-run, or with no endpoint, it prints the
+    exact request it would send and touches nothing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+ENDPOINT_ENV = "{{ endpoint_env }}"
+TOKEN_ENV = "{{ token_env }}"
+HTTP_METHOD = "{{ http_method }}"
+
+
+def parse_bool(value: str) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+{% if has_args %}
+def build_payload(args: argparse.Namespace) -> dict:
+    # Field names match the source model exactly so the JSON the interface
+    # receives is correct. See references/capability-source.md.
+    payload: dict = {}
+{% for arg in args %}
+    if args.{{ arg.dest }} is not None:
+        payload["{{ arg.wire }}"] = args.{{ arg.dest }}
+{% endfor %}
+    return payload
+{% else %}
+def build_payload(args: argparse.Namespace) -> dict:
+    # The request contract could not be resolved from source; accept a raw JSON
+    # body so the capability is still callable once the shape is confirmed.
+    if args.json_body:
+        return json.loads(args.json_body)
+    return {}
+{% endif %}
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        description="Call the {{ handler_symbol }} capability of {{ project_name }}.",
+    )
+{% for arg in args %}
+    {{ arg.add_argument }}
+{% endfor %}
+{% if not has_args %}
+    parser.add_argument("--json-body", help="Raw JSON request body to send.")
+{% endif %}
+    parser.add_argument("--execute", action="store_true", help="Send the request (default is preview only).")
+    parser.add_argument("--dry-run", action="store_true", help="Force preview; never send the request.")
+    parser.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout in seconds.")
+    args = parser.parse_args(argv)
+
+    payload = build_payload(args)
+    body = json.dumps(payload, ensure_ascii=False)
+
+    endpoint = os.environ.get(ENDPOINT_ENV)
+    token = os.environ.get(TOKEN_ENV)
+
+    # Preview unless the caller explicitly opts in AND an endpoint is configured.
+    if args.dry_run or not args.execute or not endpoint:
+        if args.dry_run:
+            reason = "dry-run requested"
+        elif not args.execute:
+            reason = "--execute not set"
+        else:
+            reason = ENDPOINT_ENV + " not set"
+        print("[preview] " + reason + "; not sending any request.")
+        print("  method:   " + HTTP_METHOD)
+        print("  endpoint: " + (endpoint or "<" + ENDPOINT_ENV + ">"))
+        print("  auth:     " + ("bearer <redacted>" if token else "<" + TOKEN_ENV + " not set>"))
+        print("  body:     " + body)
+        return 0
+
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    data = body.encode("utf-8") if payload else None
+    request = urllib.request.Request(endpoint, data=data, method=HTTP_METHOD, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=args.timeout) as response:
+            raw = response.read().decode("utf-8")
+    except urllib.error.URLError as error:
+        print("[error] request to the live interface failed: " + str(error))
+        return 1
+
+    try:
+        print(json.dumps(json.loads(raw), ensure_ascii=False, indent=2))
+    except json.JSONDecodeError:
+        print(raw)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

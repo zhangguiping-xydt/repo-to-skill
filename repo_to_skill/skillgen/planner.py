@@ -38,6 +38,32 @@ class SkillPlan:
         return [str(value) for value in values]
 
 
+@dataclass(frozen=True)
+class CallableSkillPlan:
+    target: Path
+    analysis_root: Path
+    scan: dict[str, Any]
+    profile: dict[str, Any]
+    callable_capabilities: dict[str, Any]
+
+    @property
+    def project_name(self) -> str:
+        return str(
+            self.callable_capabilities.get("project")
+            or self.profile.get("name")
+            or "local-repository"
+        )
+
+    @property
+    def interfaces(self) -> list[dict[str, Any]]:
+        values = self.callable_capabilities.get("interfaces") or []
+        return [value for value in values if isinstance(value, dict)]
+
+    @property
+    def notes(self) -> list[str]:
+        return [str(value) for value in self.callable_capabilities.get("notes") or []]
+
+
 def _analysis_root(path: Path) -> Path:
     resolved = path.expanduser().resolve()
     if resolved.is_dir():
@@ -99,4 +125,24 @@ def plan_skill(target: Path, analysis: Path) -> SkillPlan:
         skill_spec=skill_spec,
         verification_report=verification_report,
         confidence_report=confidence_report,
+    )
+
+
+def plan_callable_skills(target: Path, analysis: Path) -> CallableSkillPlan:
+    """Build a callable-skill render plan from existing analyze artifacts."""
+    target_root = target.expanduser().resolve()
+    if not target_root.exists() or not target_root.is_dir():
+        raise ValueError("target repository must be an existing directory")
+
+    root = _analysis_root(analysis)
+    scan = _read_json(root / "scan.json")
+    profile = _read_json(root / "profile.json")
+    callable_capabilities = _read_json(root / "callable_capabilities.json")
+
+    return CallableSkillPlan(
+        target=target_root,
+        analysis_root=root,
+        scan=scan,
+        profile=profile,
+        callable_capabilities=callable_capabilities,
     )
