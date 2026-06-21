@@ -21,6 +21,7 @@ expect:
       - skill_spec.yaml
       - verification_report.json
       - confidence-report.md
+      - callable_capabilities.json
     skill_files:
       - manifest.yaml
       - SKILL.md

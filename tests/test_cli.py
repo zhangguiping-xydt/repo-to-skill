@@ -70,6 +70,7 @@ testpaths = ["tests"]
         "skill_spec.yaml",
         "verification_report.json",
         "confidence-report.md",
+        "callable_capabilities.json",
     }
     assert {path.name for path in output.iterdir()} == expected
     assert str(repo) not in (output / "confidence-report.md").read_text(encoding="utf-8")

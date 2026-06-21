@@ -19,6 +19,7 @@ from repo_to_skill.evals.checks import (
     load_json_object,
     load_yaml_object,
 )
+from repo_to_skill.reverse.callable_capabilities import build_callable_capabilities
 from repo_to_skill.reverse.capability_evidence import build_capability_evidence
 from repo_to_skill.reverse.capability_graph import build_capability_graph
 from repo_to_skill.reverse.confidence_report import build_confidence_report
@@ -54,6 +55,7 @@ ANALYZE_ARTIFACTS = [
     "skill_spec.yaml",
     "verification_report.json",
     "confidence-report.md",
+    "callable_capabilities.json",
 ]
 
 
@@ -156,6 +158,7 @@ def _run_analysis(target: Path, output: Path) -> tuple[Path, str]:
     spec = build_skill_spec(profile, graph)
     verification = verify_static_outputs(evidence, graph, spec)
     confidence_report = build_confidence_report(profile, evidence, verification)
+    callable_capabilities = build_callable_capabilities(scan, store.target_root)
 
     store.write_json("scan.json", scan)
     store.write_json("profile.json", profile)
@@ -164,6 +167,7 @@ def _run_analysis(target: Path, output: Path) -> tuple[Path, str]:
     store.write_yaml("skill_spec.yaml", spec)
     store.write_json("verification_report.json", verification)
     store.write_markdown("confidence-report.md", confidence_report)
+    store.write_json("callable_capabilities.json", callable_capabilities)
     return store.output_root, verification.status
 
 
