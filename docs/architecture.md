@@ -31,6 +31,12 @@ repo-to-skill does not require a remote database. It writes normal files to loca
 
 repo-to-skill does not use a vector database by default. A vector database can be considered later as an optional extension for larger repositories, but it is not required by the MVP architecture.
 
+## Scale and scanner limits
+
+The scanner has no hard total-line limit. It has been verified on a large enterprise repository with 4,459 scanned files, about 940k scanned lines, and about 569k source lines.
+
+Scale is controlled by deterministic pruning rather than remote indexing: binary files, symlinks, sensitive files, dependency folders, generated artifacts, local run artifacts, and files larger than 1 MiB are skipped. Runtime depends mainly on file count, disk speed, and the amount of generated content left in the checkout.
+
 ## Repository write boundary
 
 repo-to-skill does not modify the target repository. The analyze/generate output must be outside the target repository. This keeps generated artifacts, eval workspaces, and skill output separate from source code.

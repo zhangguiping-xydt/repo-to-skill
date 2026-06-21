@@ -89,6 +89,12 @@ repo-to-skill does not modify the target repository. The analyze/generate output
 
 Generated helper scripts are read-only: no network, no dependency installation, and generated helpers do not spawn shell commands. They inspect checked-in files and render human-reviewable references.
 
+## Scale and limits
+
+repo-to-skill is designed for small to large local repositories. It has been verified on a large enterprise repository with 4,459 scanned files, about 940k scanned lines, and about 569k source lines.
+
+There is no hard total-line limit. Actual runtime depends on file count, disk speed, and how much generated content is present. The scanner skips binary files, symlinks, sensitive files, generated artifacts, dependency folders, local run artifacts, and individual files larger than 1 MiB.
+
 ## Compatibility
 
 The generated package is intentionally vendor-neutral. Different tools can read the Markdown references directly, use a command-aware adapter, or implement a native package adapter. See the adapter contract in [Compatibility](docs/compatibility.md) and [Adapters](adapters/README.md).
