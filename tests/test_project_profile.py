@@ -10,7 +10,7 @@ def test_build_project_profile_for_tiny_python_app() -> None:
     root = Path(__file__).resolve().parents[1] / "examples" / "tiny-python-app"
     scan = scan_repository(root)
 
-    profile = build_project_profile(scan)
+    profile = build_project_profile(scan, root)
 
     assert profile.name == "tiny-python-app"
     assert profile.primary_language == "Python"

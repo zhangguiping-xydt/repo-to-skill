@@ -744,7 +744,9 @@ def _detect_spring(source: _Source, index: dict[str, list[_TypeDef]]) -> list[Ca
     if base_mapping:
         base_route = _mapping_route(base_mapping.group(1))
     for mapping in _SPRING_MAPPING_RE.finditer(text):
-        if class_match and mapping.start() < base_mapping.end() if base_mapping else False:
+        # Skip the class-level @RequestMapping (it sits before the class body and
+        # is captured separately as base_mapping); only method mappings yield routes.
+        if base_mapping and class_match and mapping.start() < base_mapping.end():
             continue
         annotation, attr_args = mapping.group(1), mapping.group(2) or ""
         http_method = _spring_request_method(annotation, attr_args)

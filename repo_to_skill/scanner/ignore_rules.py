@@ -57,4 +57,8 @@ def should_skip_dir(path: Path) -> bool:
 
 def is_sensitive_file(path: Path) -> bool:
     name = path.name
-    return name in SENSITIVE_FILENAMES or any(name.endswith(suffix) for suffix in SENSITIVE_SUFFIXES)
+    # Catch dotted .env variants (.env.local, .env.production, ...) that hold
+    # real secrets, not just the bare ".env".
+    if name in SENSITIVE_FILENAMES or name.startswith(".env."):
+        return True
+    return any(name.endswith(suffix) for suffix in SENSITIVE_SUFFIXES)

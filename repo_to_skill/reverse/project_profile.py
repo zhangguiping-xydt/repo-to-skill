@@ -528,9 +528,6 @@ def build_project_profile(scan: ScanResult, root: Path | None = None) -> Project
         metadata_name, metadata_description = _pyproject_metadata(root)
         name = metadata_name or root.name
         description = metadata_description or description
-    elif any(record.path == "pyproject.toml" for record in scan.files):
-        name = "tiny-python-app"
-        description = "Python project detected from pyproject.toml."
 
     source_files = sorted(record.path for record in scan.files if record.role == "source")
     test_files = sorted(record.path for record in scan.files if record.role == "test")
