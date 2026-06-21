@@ -14,6 +14,7 @@ from repo_to_skill.models import FileRecord, ScanResult
 from repo_to_skill.reverse.callable_capabilities import build_callable_capabilities
 from repo_to_skill.skillgen.planner import plan_callable_skills
 from repo_to_skill.skillgen.renderer import render_callable_skills
+from repo_to_skill.skillgen.validator import validate_skill
 
 
 # --------------------------------------------------------------------------- #
@@ -310,3 +311,81 @@ def test_render_callable_skills_one_pack_per_interface(tmp_path: Path) -> None:
     assert len(packs) == 2
     names = {pack.name for pack in packs}
     assert names == {"calculate-work-load", "mystery-handler"}
+
+
+# --------------------------------------------------------------------------- #
+# Validator — callable branch
+# --------------------------------------------------------------------------- #
+
+
+def _render_resolved_pack(tmp_path: Path) -> Path:
+    repo, analysis = _prepare(
+        tmp_path,
+        {
+            "Handlers/CalculateWorkLoad.ashx": ("ASP.NET", ASHX),
+            "BLL/KQWorkDate.cs": ("C#", CS_MODELS),
+        },
+    )
+    plan = plan_callable_skills(repo, analysis)
+    packs = render_callable_skills(plan, tmp_path / "skill")
+    return packs[0]
+
+
+def test_validator_passes_on_rendered_callable_pack(tmp_path: Path) -> None:
+    pack = _render_resolved_pack(tmp_path)
+    report = validate_skill(pack)
+    # urlopen(...) must NOT trip the bare open( ban, and urllib.request/error are allowed
+    assert report.status == "PASS", report.findings
+
+
+def test_validator_flags_dangerous_token_in_callable_script(tmp_path: Path) -> None:
+    pack = _render_resolved_pack(tmp_path)
+    script = pack / "scripts" / "call_calculate_work_load.py"
+    script.write_text(script.read_text(encoding="utf-8") + "\nimport subprocess\n", encoding="utf-8")
+    report = validate_skill(pack)
+    assert report.status == "FAIL"
+    assert any("subprocess" in finding for finding in report.findings)
+
+
+def test_validator_flags_non_dry_run_default_manifest(tmp_path: Path) -> None:
+    pack = _render_resolved_pack(tmp_path)
+    manifest = pack / "manifest.yaml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace(
+            "dry_run_default: true", "dry_run_default: false"
+        ),
+        encoding="utf-8",
+    )
+    report = validate_skill(pack)
+    assert report.status == "FAIL"
+    assert any("dry_run_default" in finding for finding in report.findings)
+
+
+def test_validator_flags_env_mismatch_between_manifest_and_script(tmp_path: Path) -> None:
+    pack = _render_resolved_pack(tmp_path)
+    manifest = pack / "manifest.yaml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace(
+            "CALCULATE_WORK_LOAD_TOKEN", "SOME_OTHER_TOKEN"
+        ),
+        encoding="utf-8",
+    )
+    report = validate_skill(pack)
+    assert report.status == "FAIL"
+    assert any("token_env" in finding.lower() or "TOKEN_ENV" in finding for finding in report.findings)
+
+
+def test_validator_flags_hardcoded_endpoint_env_drop(tmp_path: Path) -> None:
+    pack = _render_resolved_pack(tmp_path)
+    manifest = pack / "manifest.yaml"
+    # endpoint_env that no longer ends with _ENDPOINT must be rejected
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace(
+            "endpoint_env: CALCULATE_WORK_LOAD_ENDPOINT",
+            "endpoint_env: https://prod.internal/calc",
+        ),
+        encoding="utf-8",
+    )
+    report = validate_skill(pack)
+    assert report.status == "FAIL"
+    assert any("endpoint_env" in finding for finding in report.findings)
