@@ -427,7 +427,8 @@ def test_cli_generate_mode_callable_reports_when_no_interfaces(tmp_path: Path) -
         ["generate", str(repo), "--analysis", str(analysis), "--output", str(output), "--mode", "callable"],
     )
     assert result.exit_code == 0, result.stdout
-    assert "No callable HTTP interfaces detected." in result.stdout
+    assert "No callable HTTP interfaces were detected." in result.stdout
+    assert "FastAPI" in result.stdout
 
 
 def test_cli_generate_rejects_unknown_mode(tmp_path: Path) -> None:

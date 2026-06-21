@@ -492,6 +492,31 @@ def _callable_sample_command(module: str, args: list[dict[str, Any]]) -> str:
     return " \\\n  ".join(parts)
 
 
+def _goal_intent(need_summary: str) -> str:
+    """Turn a user goal into a 'you need to ...' clause for a skill trigger."""
+    goal = (need_summary or "").strip().rstrip(".")
+    if goal.lower() in {"", "selected callable interfaces"}:
+        return "you need these live capabilities"
+    return f"you need to {goal[0].lower()}{goal[1:]}"
+
+
+def _bundle_skill_description(project_name: str, need_summary: str, interfaces_count: int) -> str:
+    """Trigger-shaped SKILL.md description: tells an agent WHEN to use the bundle."""
+    tools_word = "tool" if interfaces_count == 1 else "tools"
+    return _inline_text(
+        f"Use when {_goal_intent(need_summary)} using the {project_name} system's live "
+        f"HTTP APIs ({interfaces_count} callable {tools_word}) instead of reimplementing the logic."
+    )
+
+
+def _callable_skill_description(project_name: str, handler_symbol: str, http_method: str, route: str) -> str:
+    """Trigger-shaped SKILL.md description for a single callable capability."""
+    return _inline_text(
+        f"Use when you need the live result of {project_name}'s {handler_symbol} "
+        f"({http_method} {route}) — call the existing HTTP API instead of reimplementing the logic."
+    )
+
+
 def _callable_context(interface: dict[str, Any], project_name: str, slug: str, module: str) -> dict[str, Any]:
     request = interface.get("request") if isinstance(interface.get("request"), dict) else {}
     response = interface.get("response") if isinstance(interface.get("response"), dict) else {}
@@ -533,6 +558,7 @@ def _callable_context(interface: dict[str, Any], project_name: str, slug: str, m
         "handler_symbol": handler_symbol,
         "handler_path": handler_path,
         "business_method": business_method,
+        "skill_description": _callable_skill_description(project_name, handler_symbol, http_method, route),
         "endpoint_env": endpoint_env,
         "token_env": token_env,
         "side_effects": side_effects,
@@ -607,13 +633,16 @@ def _bundle_context(plan: CallableBundlePlan) -> dict[str, Any]:
         context["selection_reasons"] = [_inline_text(reason) for reason in item.reasons]
         interfaces.append(context)
 
+    need_summary = _inline_text(plan.selection.need_summary, "Selected callable interfaces.")
+    interfaces_count = len(interfaces)
     return {
         "project_name": project_name,
         "bundle_slug": bundle_slug,
-        "need_summary": _inline_text(plan.selection.need_summary, "Selected callable interfaces."),
+        "need_summary": need_summary,
+        "skill_description": _bundle_skill_description(project_name, need_summary, interfaces_count),
         "selection_source": _inline_text(plan.selection.selection_source, "deterministic"),
         "interfaces": interfaces,
-        "interfaces_count": len(interfaces),
+        "interfaces_count": interfaces_count,
         "generated_by": "repo-to-skill",
     }
 

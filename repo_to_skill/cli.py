@@ -18,6 +18,7 @@ from repo_to_skill.reverse.project_profile import build_project_profile
 from repo_to_skill.reverse.skill_spec import build_skill_spec
 from repo_to_skill.reverse.verification import verify_static_outputs
 from repo_to_skill.scanner.filesystem import scan_repository
+from repo_to_skill.skillgen.installer import install_skill
 from repo_to_skill.skillgen.planner import plan_callable_bundle, plan_callable_skills, plan_skill
 from repo_to_skill.skillgen.renderer import render_callable_bundle, render_callable_skills, render_skill
 from repo_to_skill.skillgen.validator import SkillValidationReport, validate_skill
@@ -55,27 +56,66 @@ def _run_analysis(target: Path, output: Path) -> tuple[Path, str]:
     return store.output_root, verification.status
 
 
+SUPPORTED_CALLABLE_FRAMEWORKS = (
+    ".NET — ASP.NET IHttpHandler (.ashx), Web API controllers ([ApiController]/[Http*])",
+    "Java — Spring (@RestController/@Controller), JAX-RS (@Path/@GET/@POST)",
+    "Python — FastAPI (@app.get/post), Flask (@app.route)",
+)
+_SUPPORTED_CALLABLE_LANGUAGES = {"Python", "Java", "C#", "ASP.NET"}
+
+
+def _no_interface_guidance(languages: list[str]) -> str:
+    """Explain WHY nothing was detected and what to do, instead of a dead end."""
+    detected = [str(language) for language in languages if str(language)]
+    supported_present = sorted(set(detected) & _SUPPORTED_CALLABLE_LANGUAGES)
+    lines = ["No callable HTTP interfaces were detected."]
+    if detected:
+        lines += ["", "Detected languages: " + ", ".join(detected)]
+    lines += ["", "Callable detection currently supports:"]
+    lines += [f"  - {framework}" for framework in SUPPORTED_CALLABLE_FRAMEWORKS]
+    lines.append("")
+    if supported_present:
+        lines.append(
+            "Supported languages are present (" + ", ".join(supported_present) + ") but no routes "
+            "were recognized. Check that the HTTP layer uses a framework above, and that route files "
+            "were not skipped (binary, larger than 1 MiB, or under an ignored directory)."
+        )
+    else:
+        lines.append(
+            "This stack is not recognized yet (Node/Express, Go, Ruby, and others are not supported). "
+            "Issues and contributions are welcome."
+        )
+    return "\n".join(lines)
+
+
 def _print_validation(report: SkillValidationReport) -> None:
     console.print(f"Validation: {report.status}")
     for finding in report.findings:
         console.print(f"- {finding}")
 
 
-def _generate_skill(target: Path, analysis: Path, output: Path) -> SkillValidationReport:
+def _install_and_report(skill_root: Path) -> None:
+    for destination in install_skill(skill_root):
+        console.print(f"Installed skill: {destination}", soft_wrap=True)
+
+
+def _generate_skill(target: Path, analysis: Path, output: Path, *, install: bool = False) -> SkillValidationReport:
     target_root, output_root = resolve_target_and_output(target, output)
     plan = plan_skill(target_root, analysis)
     skill_root = render_skill(plan, output_root)
     report = validate_skill(skill_root)
     console.print(f"Generated skill: {skill_root}", soft_wrap=True)
     _print_validation(report)
+    if install and report.status == "PASS":
+        _install_and_report(skill_root)
     return report
 
 
-def _generate_callable_skills(target: Path, analysis: Path, output: Path) -> bool:
+def _generate_callable_skills(target: Path, analysis: Path, output: Path, *, install: bool = False) -> bool:
     target_root, output_root = resolve_target_and_output(target, output)
     plan = plan_callable_skills(target_root, analysis)
     if not plan.interfaces:
-        console.print("No callable HTTP interfaces detected.")
+        console.print(_no_interface_guidance(plan.profile.get("languages") or []))
         return True
     all_pass = True
     for pack in render_callable_skills(plan, output_root):
@@ -84,6 +124,8 @@ def _generate_callable_skills(target: Path, analysis: Path, output: Path) -> boo
         _print_validation(report)
         if report.status != "PASS":
             all_pass = False
+        elif install:
+            _install_and_report(pack)
     return all_pass
 
 
@@ -102,8 +144,13 @@ def _generate_callable_bundle(
     max_interfaces: int,
     selected_slugs: str | None,
     selection_json: Path | None,
+    install: bool = False,
 ) -> bool:
     target_root, output_root = resolve_target_and_output(target, output)
+    base = plan_callable_skills(target_root, analysis)
+    if not base.interfaces:
+        console.print(_no_interface_guidance(base.profile.get("languages") or []))
+        return True
     plan = plan_callable_bundle(
         target_root,
         analysis,
@@ -116,6 +163,8 @@ def _generate_callable_bundle(
     report = validate_skill(bundle)
     console.print(f"Generated callable bundle: {bundle}", soft_wrap=True)
     _print_validation(report)
+    if install and report.status == "PASS":
+        _install_and_report(bundle)
     return report.status == "PASS"
 
 
@@ -158,6 +207,11 @@ def generate(
         "--selection-json",
         help="JSON file with need_summary, selected_slugs, and selection_source.",
     ),
+    install: bool = typer.Option(
+        False,
+        "--install",
+        help="After a PASS, copy the skill into ~/.claude/skills and ~/.agents/skills for immediate agent use.",
+    ),
 ) -> None:
     """Generate a reviewable local AI coding agent skill pack from existing analysis artifacts."""
     if mode not in {"repo-map", "callable", "callable-bundle"}:
@@ -165,7 +219,7 @@ def generate(
         raise typer.Exit(code=1)
     try:
         if mode == "callable":
-            all_pass = _generate_callable_skills(target, analysis, output)
+            all_pass = _generate_callable_skills(target, analysis, output, install=install)
         elif mode == "callable-bundle":
             all_pass = _generate_callable_bundle(
                 target,
@@ -175,9 +229,10 @@ def generate(
                 max_interfaces=max_interfaces,
                 selected_slugs=selected_slugs,
                 selection_json=selection_json,
+                install=install,
             )
         else:
-            all_pass = _generate_skill(target, analysis, output).status == "PASS"
+            all_pass = _generate_skill(target, analysis, output, install=install).status == "PASS"
     except ValueError as exc:
         console.print(str(exc))
         raise typer.Exit(code=1) from exc
