@@ -687,10 +687,34 @@ def _detect_dotnet_controllers(
 _SPRING_MAPPING_RE = re.compile(
     r"@(Get|Post|Put|Delete|Patch|Request)Mapping(?:\(\s*([^)]*)\))?"
 )
-_REQUEST_BODY_RE = re.compile(r"@RequestBody\s+(?:final\s+)?([A-Za-z_][\w<>.]*)\s+\w+")
-_JAVA_SIG_RE = re.compile(
-    r"public\s+(?:final\s+)?([A-Za-z_][\w<>.,\[\] ]*?)\s+([A-Za-z_]\w*)\s*\(([^)]*)\)"
+_REQUEST_BODY_RE = re.compile(
+    r"@RequestBody\s*(?:@[A-Za-z_]\w*(?:\([^)]*\))?\s*)*(?:final\s+)?([A-Za-z_][\w<>.]*)\s+\w+"
 )
+_JAVA_SIG_PREFIX_RE = re.compile(
+    r"public\s+(?:final\s+)?([A-Za-z_][\w<>.,\[\] ]*?)\s+([A-Za-z_]\w*)\s*\("
+)
+
+
+def _balanced_paren_text(text: str, open_index: int) -> str:
+    depth = 0
+    for position in range(open_index, len(text)):
+        char = text[position]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_index + 1 : position]
+    return text[open_index + 1 :]
+
+
+def _java_signature(tail: str) -> tuple[str, str, str] | None:
+    match = _JAVA_SIG_PREFIX_RE.search(tail)
+    if not match:
+        return None
+    return_type, action_name = match.group(1), match.group(2)
+    params = _balanced_paren_text(tail, match.end() - 1)
+    return return_type, action_name, params
 
 
 def _mapping_route(attr_args: str) -> str:
@@ -726,10 +750,10 @@ def _detect_spring(source: _Source, index: dict[str, list[_TypeDef]]) -> list[Ca
         http_method = _spring_request_method(annotation, attr_args)
         method_route = _mapping_route(attr_args)
         tail = text[mapping.end(): mapping.end() + 600]
-        sig = _JAVA_SIG_RE.search(tail)
-        if not sig:
+        sig = _java_signature(tail)
+        if sig is None:
             continue
-        return_type, action_name, params = sig.group(1), sig.group(2), sig.group(3)
+        return_type, action_name, params = sig
         body_match = _REQUEST_BODY_RE.search(params)
         request_type = body_match.group(1).split("<")[0].split(".")[-1] if body_match else ""
         response_type = _unwrap_response_type(return_type).split(".")[-1]
@@ -787,10 +811,10 @@ def _detect_jaxrs(source: _Source, index: dict[str, list[_TypeDef]]) -> list[Cal
         tail = text[verb.end(): verb.end() + 600]
         method_path_match = re.search(r'@Path\(\s*"([^"]*)"\s*\)', tail[:200])
         method_route = method_path_match.group(1) if method_path_match else ""
-        sig = _JAVA_SIG_RE.search(tail)
-        if not sig:
+        sig = _java_signature(tail)
+        if sig is None:
             continue
-        return_type, action_name, params = sig.group(1), sig.group(2), sig.group(3)
+        return_type, action_name, params = sig
         entity_type = ""
         for part in params.split(","):
             tokens = part.strip().split()

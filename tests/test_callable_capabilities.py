@@ -285,6 +285,69 @@ def test_detects_spring_post_with_request_body(tmp_path: Path) -> None:
     assert interface.request.unresolved is False
 
 
+def test_detects_spring_request_body_with_extra_annotations(tmp_path: Path) -> None:
+    controller = """package com.example.api;
+
+import org.springframework.web.bind.annotation.*;
+
+@Controller
+@RequestMapping("/srv/entry")
+public class AncillaryStaffController {
+
+    @RequestMapping(value = "/getAncillaryStaffDic", method = RequestMethod.POST)
+    @ResponseBody
+    public ServiceData getAncillaryStaffDic(
+            @RequestHeader(value = "X-Emp-No") String empNo,
+            @RequestBody@ApiParam(value = "query entity", required = true) AncillaryStaffInfoDTO dto) throws Exception {
+        return service.getAncillaryStaffDic(dto);
+    }
+
+    @RequestMapping(value = "/postAncillaryStaffInfo", method = RequestMethod.POST)
+    @ResponseBody
+    public ServiceData postAncillaryStaffInfo(
+            @RequestBody @Validated @ApiParam(value = "submit object") AncillaryStaffInfoParam param) throws Exception {
+        return service.postAncillaryStaffInfo(param);
+    }
+}
+"""
+    models = """package com.example.api;
+
+public class AncillaryStaffInfoDTO {
+    private String dicId;
+    private String langId;
+}
+
+public class AncillaryStaffInfoParam {
+    private String salaryNumber;
+    private String salPointId;
+}
+"""
+    root = tmp_path / "spring"
+    scan = _write_scan(
+        root,
+        {
+            "src/AncillaryStaffController.java": ("Java", controller),
+            "src/AncillaryStaffModels.java": ("Java", models),
+        },
+    )
+
+    result = build_callable_capabilities(scan, root)
+
+    interfaces = {interface.handler_symbol: interface for interface in result.interfaces}
+    assert set(interfaces) == {
+        "AncillaryStaffController.getAncillaryStaffDic",
+        "AncillaryStaffController.postAncillaryStaffInfo",
+    }
+    assert {f.name for f in interfaces["AncillaryStaffController.getAncillaryStaffDic"].request.fields} == {
+        "dicId",
+        "langId",
+    }
+    assert {f.name for f in interfaces["AncillaryStaffController.postAncillaryStaffInfo"].request.fields} == {
+        "salaryNumber",
+        "salPointId",
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Python — FastAPI + Pydantic
 # --------------------------------------------------------------------------- #
