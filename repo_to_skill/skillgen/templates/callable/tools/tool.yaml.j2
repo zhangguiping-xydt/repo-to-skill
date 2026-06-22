@@ -16,11 +16,11 @@ invocation:
 
 input_schema:
   type: object
-{% if request_required %}
-  required: [{{ request_required | join(", ") }}]
+{% if request_body_required %}
+  required: [{{ request_body_required | join(", ") }}]
 {% endif %}
   properties:
-{% for field in request_fields %}
+{% for field in request_body_fields %}
     {{ field.wire }}:
       type: {{ field.schema_type }}
 {% if field.is_bool %}
@@ -30,6 +30,17 @@ input_schema:
 {% else %}
     {}  # TODO: request payload could not be resolved from source; pass --json-body.
 {% endfor %}
+{% if request_path_fields %}
+# Path parameters are substituted into {{ '{{param}}' }} placeholders in the
+# endpoint URL; they are NOT sent in the JSON body.
+path_parameters:
+{% for field in request_path_fields %}
+  {{ field.wire }}:
+    type: {{ field.schema_type }}
+    required: {{ field.required | lower }}
+    description: {{ field.description | tojson }}
+{% endfor %}
+{% endif %}
 
 output_schema:
   type: object

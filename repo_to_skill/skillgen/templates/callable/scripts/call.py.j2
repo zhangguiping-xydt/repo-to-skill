@@ -33,7 +33,7 @@ def parse_bool(value: str) -> bool:
 
 {% if has_path_params %}
 def build_path_values(args: argparse.Namespace) -> dict:
-    # Path parameters are substituted into {{ '{{' }}param}} placeholders in the
+    # Path parameters are substituted into {{ "{param}" }} placeholders in the
     # endpoint URL. They are NOT sent in the JSON body.
     values: dict = {}
 {% for arg in path_args %}
@@ -44,7 +44,7 @@ def build_path_values(args: argparse.Namespace) -> dict:
 
 
 def resolve_endpoint(endpoint: str, path_values: dict) -> str:
-    # Replace {{ '{{name}' }} and {{ '{{name:converter}' }} placeholders with the
+    # Replace {{ "{name}" }} and {{ "{name:converter}" }} placeholders with the
     # values provided on the command line. Missing values are left as-is so the
     # preview makes the gap visible.
     for name, value in path_values.items():

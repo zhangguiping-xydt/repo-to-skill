@@ -264,6 +264,45 @@ def test_render_callable_skill_resolved_contract(tmp_path: Path) -> None:
     assert "EmployeeInfo" in out  # the body it would send mirrors the source field
 
 
+def test_render_callable_skill_splits_path_params_in_tool_schema(tmp_path: Path) -> None:
+    fastapi_src = """from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+
+class TransferRequest(BaseModel):
+    new_department: str
+    effective_date: str
+
+
+@app.post(\"/employees/{employee_id}/transfer\")
+def transfer_employee(employee_id: int, payload: TransferRequest):
+    return {\"id\": employee_id}
+"""
+    repo, analysis = _prepare(tmp_path, {"main.py": ("Python", fastapi_src)})
+    plan = plan_callable_skills(repo, analysis)
+
+    output = tmp_path / "skill"
+    packs = render_callable_skills(plan, output)
+    assert len(packs) == 1
+    pack = packs[0]
+
+    tool = yaml.safe_load(next((pack / "tools").glob("*.tool.yaml")).read_text(encoding="utf-8"))
+
+    # path param must NOT appear in the JSON body schema...
+    body_props = tool["input_schema"].get("properties", {})
+    assert "employee_id" not in body_props
+    assert "new_department" in body_props
+    assert "effective_date" in body_props
+    assert "employee_id" not in tool["input_schema"].get("required", [])
+
+    # ...but it must surface in path_parameters so agents still see it.
+    path_params = tool.get("path_parameters", {})
+    assert "employee_id" in path_params
+    assert path_params["employee_id"]["required"] is True
+
+
 # --------------------------------------------------------------------------- #
 # Renderer — unresolved contract degrades to a --json-body caller
 # --------------------------------------------------------------------------- #

@@ -880,7 +880,86 @@ _FASTAPI_ROUTE_RE = re.compile(
 _FLASK_ROUTE_RE = re.compile(
     r"@(\w+)\.route\(\s*[\"']([^\"']+)[\"']([^)]*)\)"
 )
-_PY_DEF_RE = re.compile(r"(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*([A-Za-z_][\w\[\]., ]*?))?\s*:")
+_PY_DEF_RE = re.compile(r"(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(")
+
+
+def _find_annotation_colon(text: str) -> int:
+    """Return the index of the first top-level ``:`` in ``text``.
+
+    Brackets and string literals are skipped so annotations like
+    ``dict[str, int]`` or ``Literal[\"a:b\"]`` do not terminate early.
+    """
+    depth = 0
+    quote = ""
+    for index, char in enumerate(text):
+        if quote:
+            if char == quote:
+                quote = ""
+            continue
+        if char in "\"'":
+            quote = char
+            continue
+        if char in "([{":
+            depth += 1
+            continue
+        if char in ")]}":
+            if depth > 0:
+                depth -= 1
+            continue
+        if char == ":" and depth == 0:
+            return index
+    return -1
+
+
+def _find_py_def(text: str, start: int) -> tuple[int, int, str, str, str] | None:
+    """Locate the next ``def name(...)[: -> ann]: ...`` signature starting at ``start``.
+
+    Scans parameter and return-annotation parentheses with depth tracking so
+    signatures like ``def f(payload: Annotated[Item, Body()]):`` and
+    ``def f(q: str = Query(\"x\")) -> Response[Item]:`` parse correctly. A regex
+    using ``([^)]*)`` would terminate at the first inner ``)`` and drop the
+    whole handler.
+
+    Returns ``(match_start, signature_end, name, params, return_annotation)``
+    where ``signature_end`` is the index just past the terminating ``:``,
+    or ``None`` if no signature is found.
+    """
+    opener = _PY_DEF_RE.search(text, start)
+    if opener is None:
+        return None
+    name = opener.group(1)
+    paren_start = opener.end() - 1  # position of '('
+    depth = 0
+    param_end = -1
+    for index in range(paren_start, len(text)):
+        char = text[index]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                param_end = index
+                break
+    if param_end == -1:
+        return None
+    params = text[paren_start + 1:param_end]
+    tail = text[param_end + 1:]
+    return_annotation = ""
+    stripped = tail.lstrip()
+    if stripped.startswith("->"):
+        rest = stripped[2:].lstrip()
+        colon = _find_annotation_colon(rest)
+        if colon == -1:
+            return None
+        return_annotation = rest[:colon].strip()
+        body_colon_offset = len(tail) - len(rest) + colon
+    else:
+        body_match = re.match(r"\s*:", tail)
+        if body_match is None:
+            return None
+        body_colon_offset = body_match.end() - 1
+    signature_end = param_end + 1 + body_colon_offset + 1
+    return (opener.start(), signature_end, name, params, return_annotation)
 
 
 def _fastapi_path_param_names(route: str) -> list[str]:
@@ -949,6 +1028,27 @@ def _fastapi_parse_param(text: str) -> tuple[str, str, str]:
     return (name, annotation, default)
 
 
+def _fastapi_base_type(annotation: str) -> str:
+    """Return the base type name for a FastAPI handler parameter annotation.
+
+    Handles three common forms:
+    - ``int`` / ``str`` / ``Item``                    → returned verbatim (module-stripped)
+    - ``Optional[Item]`` / ``list[Item]``             → outer wrapper preserved
+    - ``Annotated[Item, Body()]`` / ``Annotated[Item, Body(), ...]``
+                                                      → ``Item`` (first type argument)
+    - ``dict`` / ``dict[str, int]``                   → preserved so dict body detection works
+    """
+    cleaned = annotation.strip()
+    if not cleaned:
+        return ""
+    # Default-value tail is already stripped by the caller, but be defensive:
+    cleaned = re.split(r"\s*=\s*", cleaned, maxsplit=1)[0].strip()
+    annotated = re.match(r"(?:typing\.)?Annotated\s*\[\s*([^\],]+)", cleaned, re.IGNORECASE)
+    if annotated:
+        return annotated.group(1).strip().split(".")[-1]
+    return re.split(r"\s*\[\s*", cleaned, maxsplit=1)[0].strip().split(".")[-1]
+
+
 def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[CallableInterface]:
     text = source.text
     if "@" not in text or (".get(" not in text and ".post(" not in text and ".put(" not in text
@@ -959,10 +1059,10 @@ def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[C
         http_method = route_match.group(2).upper()
         route = route_match.group(3)
         decorator_args = route_match.group(4)
-        def_match = _PY_DEF_RE.search(text, route_match.end())
-        if not def_match:
+        def_info = _find_py_def(text, route_match.end())
+        if def_info is None:
             continue
-        action_name, params, return_annotation = def_match.group(1), def_match.group(2), def_match.group(3)
+        _def_start, _def_end, action_name, params, return_annotation = def_info
 
         path_param_names = set(_fastapi_path_param_names(route))
         path_fields: list[IoField] = []
@@ -971,7 +1071,7 @@ def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[C
         for name, annotation, _default in _fastapi_split_params(params):
             if not name:
                 continue
-            annotation_base = re.split(r"[=\[]", annotation, maxsplit=1)[0].strip().split(".")[-1] if annotation else ""
+            annotation_base = _fastapi_base_type(annotation)
             if name in path_param_names:
                 # Path parameter: FastAPI binds it from {name} in the route.
                 path_fields.append(
@@ -1089,11 +1189,11 @@ def _detect_flask(source: _Source, index: dict[str, list[_TypeDef]]) -> list[Cal
             if methods_match
             else ["GET"]
         )
-        def_match = _PY_DEF_RE.search(text, route_match.end())
-        if not def_match:
+        def_match = _find_py_def(text, route_match.end())
+        if def_match is None:
             continue
-        action_name = def_match.group(1)
-        body = _python_class_block(text, def_match.end())
+        _def_start, def_end, action_name = def_match[0], def_match[1], def_match[2]
+        body = _python_class_block(text, def_end)
         for http_method in methods:
             if http_method == "HEAD" or http_method == "OPTIONS":
                 continue

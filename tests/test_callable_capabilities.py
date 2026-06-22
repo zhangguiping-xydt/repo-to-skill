@@ -472,6 +472,66 @@ def test_detects_fastapi_dict_body_without_pydantic_model(tmp_path: Path) -> Non
                for note in interface.request.notes)
 
 
+FASTAPI_ANNOTATED_BODY = """from fastapi import FastAPI, Body
+from typing import Annotated
+from pydantic import BaseModel
+
+app = FastAPI()
+
+
+class Item(BaseModel):
+    name: str
+    qty: int
+
+
+@app.post(\"/items/\")
+def create_item(payload: Annotated[Item, Body()]):
+    return payload
+"""
+
+
+def test_detects_fastapi_annotated_body_with_nested_parens(tmp_path: Path) -> None:
+    root = tmp_path / "py"
+    scan = _write_scan(root, {"main.py": ("Python", FASTAPI_ANNOTATED_BODY)})
+
+    result = build_callable_capabilities(scan, root)
+
+    fastapi = [i for i in result.interfaces if i.framework == "fastapi"]
+    assert len(fastapi) == 1
+    interface = fastapi[0]
+    assert interface.http_method == "POST"
+    assert interface.route == "/items/"
+    assert interface.handler_symbol == "create_item"
+    request_names = {f.name for f in interface.request.fields}
+    assert request_names == {"name", "qty"}
+    assert interface.request.unresolved is False
+    assert interface.request.model_name == "Item"
+
+
+FASTAPI_QUERY_DEFAULT_PARENS = """from fastapi import FastAPI, Query
+
+app = FastAPI()
+
+
+@app.get(\"/search\")
+def search(q: str = Query(\"default\")):
+    return {\"q\": q}
+"""
+
+
+def test_detects_fastapi_handler_with_default_call_parens(tmp_path: Path) -> None:
+    root = tmp_path / "py"
+    scan = _write_scan(root, {"main.py": ("Python", FASTAPI_QUERY_DEFAULT_PARENS)})
+
+    result = build_callable_capabilities(scan, root)
+
+    fastapi = [i for i in result.interfaces if i.framework == "fastapi"]
+    assert len(fastapi) == 1
+    interface = fastapi[0]
+    assert interface.handler_symbol == "search"
+    assert interface.route == "/search"
+
+
 # --------------------------------------------------------------------------- #
 # Python — Flask (best-effort key inference)
 # --------------------------------------------------------------------------- #

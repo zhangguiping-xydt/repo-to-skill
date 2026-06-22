@@ -538,7 +538,15 @@ def _callable_context(interface: dict[str, Any], project_name: str, slug: str, m
     body_args = [arg for arg in args if arg.get("location") != "path"]
     request_fields = _callable_schema_fields(request)
     response_fields = _callable_schema_fields(response)
-    request_required = [field["wire"] for field in request_fields if field["required"]]
+    # Split fields so tool.yaml exposes path params separately from the JSON
+    # body schema. Otherwise agents read the body schema as including path
+    # params (which the caller strips out before sending).
+    path_field_names = {arg["wire"] for arg in path_args}
+    request_body_fields = [field for field in request_fields if field["wire"] not in path_field_names]
+    request_path_fields = [field for field in request_fields if field["wire"] in path_field_names]
+    request_body_required = [field["wire"] for field in request_body_fields if field["required"]]
+    request_path_required = [field["wire"] for field in request_path_fields if field["required"]]
+    request_required = request_body_required
 
     verb = _METHOD_VERB.get(http_method, "Call")
     summary = _inline_text(f"{verb} the {framework} {http_method} interface {handler_symbol} of {project_name}.")
@@ -579,8 +587,12 @@ def _callable_context(interface: dict[str, Any], project_name: str, slug: str, m
         "has_args": bool(args),
         "has_body_args": bool(body_args),
         "request_fields": request_fields,
+        "request_body_fields": request_body_fields,
+        "request_path_fields": request_path_fields,
         "response_fields": response_fields,
         "request_required": request_required,
+        "request_body_required": request_body_required,
+        "request_path_required": request_path_required,
         "sample_command": _callable_sample_command(module, args),
         "generated_by": "repo-to-skill",
     }
