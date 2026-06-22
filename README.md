@@ -4,6 +4,8 @@
 
 **Give it a repo and a user goal. It finds the right APIs and turns them into callable agent skills.**
 
+![repo-to-skill turns a source repository and user goal into installable callable agent skills](docs/assets/repo-to-skill-cover.svg)
+
 repo-to-skill helps coding agents reuse existing software instead of reimplementing it. It reads a local repository **from source — no API docs or OpenAPI spec required**, detects callable HTTP interfaces, selects the APIs that match a user goal, and generates a separate, installable skill package with tool schemas, safe caller scripts, and source-level provenance.
 
 - **Source, not docs** — it reverse-engineers callable interfaces from source code via static analysis, so it works on legacy systems that have no API documentation.

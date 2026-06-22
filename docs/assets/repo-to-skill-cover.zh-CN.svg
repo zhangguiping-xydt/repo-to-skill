@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">repo-to-skill 手绘漫画说明图</title>
+  <desc id="desc">手绘漫画风说明图：源码仓库和用户目标进入 repo-to-skill，生成可调用 Agent 技能。</desc>
+  <defs>
+    <pattern id="paper" width="120" height="120" patternUnits="userSpaceOnUse">
+      <rect width="120" height="120" fill="#fff8e8"/>
+      <path d="M0 36 H120 M0 76 H120 M0 116 H120" stroke="#dbeafa" stroke-width="1.4" opacity="0.52"/>
+      <path d="M42 0 V120 M92 0 V120" stroke="#eef5ff" stroke-width="1.1" opacity="0.5"/>
+    </pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="4" dy="6" stdDeviation="0.4" flood-color="#1f3352" flood-opacity="0.14"/>
+    </filter>
+    <style>
+      .font { font-family: "Comic Sans MS", "Comic Neue", "Segoe Print", "Bradley Hand", ui-sans-serif, system-ui, sans-serif; }
+      .mono { font-family: "Comic Sans MS", "Comic Neue", ui-monospace, Menlo, Consolas, monospace; }
+      .title { font-size: 98px; font-weight: 900; fill: #10284d; letter-spacing: -3px; }
+      .subtitle { font-size: 38px; font-weight: 800; fill: #24486f; }
+      .ink { stroke: #10284d; stroke-width: 4.2; stroke-linecap: round; stroke-linejoin: round; }
+      .thin { stroke: #10284d; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+      .panelTitle { font-size: 20px; font-weight: 900; fill: #10284d; letter-spacing: .3px; }
+      .small { font-size: 18px; font-weight: 800; fill: #17365d; }
+      .tiny { font-size: 15px; font-weight: 760; fill: #24486f; }
+      .white { fill: #e9f8ff; font-size: 18px; font-weight: 850; }
+      .arrow { fill: none; stroke: #123d75; stroke-width: 3.6; stroke-linecap: round; stroke-linejoin: round; }
+      .arrowHead { fill: none; stroke: #123d75; stroke-width: 3.6; stroke-linecap: round; stroke-linejoin: round; }
+      .dash { fill: none; stroke: #123d75; stroke-width: 3; stroke-dasharray: 8 10; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#paper)"/>
+
+  <g transform="translate(70 72)">
+    <text x="0" y="72" class="font title">repo-to-skill</text>
+    <path d="M8 91 C180 111 390 108 548 92" fill="none" stroke="#ffd34d" stroke-width="14" stroke-linecap="round" opacity="0.72"/>
+    <text x="4" y="136" class="font subtitle">仓库 + 目标 → 可调用 Agent 技能</text>
+  </g>
+
+  <!-- Cards are deliberately small and far apart: no label boxes outside, no touching borders. -->
+  <!-- SOURCE -->
+  <g transform="translate(70 315)" filter="url(#shadow)">
+    <rect x="0" y="0" width="200" height="280" rx="28" fill="#f9fdff" class="ink"/>
+    <text x="100" y="38" text-anchor="middle" class="font panelTitle">源码仓库</text>
+    <path d="M34 66 h72 l17 22 h56 v68 H34 Z" fill="#8ed6ff" class="ink"/>
+    <rect x="42" y="174" width="116" height="70" rx="14" fill="#dff4ff" class="thin"/>
+    <rect x="70" y="187" width="62" height="42" rx="9" fill="#fff8c9" class="thin"/>
+    <text x="84" y="207" class="mono tiny">GET</text>
+    <text x="80" y="225" class="mono tiny">/api</text>
+  </g>
+
+  <!-- Arrow 1: floats in a 120px empty gap, never reaches card edges. -->
+  <g>
+    <path d="M305 455 C330 446 354 446 380 455" class="arrow"/>
+    <path d="M365 446 L382 455 L365 464" class="arrowHead"/>
+  </g>
+
+  <!-- GOAL -->
+  <g transform="translate(410 315)" filter="url(#shadow)">
+    <rect x="0" y="0" width="200" height="280" rx="28" fill="#fff8c9" class="ink"/>
+    <text x="100" y="38" text-anchor="middle" class="font panelTitle">用户目标</text>
+    <path d="M36 78 C78 64 128 68 154 88 C166 124 160 154 142 170 C110 176 78 174 52 166 L28 188 L38 158 C26 130 24 94 36 78Z" fill="#fffef2" class="thin"/>
+    <text x="58" y="112" class="font small">查找目标</text>
+    <text x="58" y="140" class="font small">相关 API</text>
+    <path d="M54 214 C86 204 124 205 150 216" fill="none" class="thin" opacity="0.38"/>
+    <path d="M54 238 C86 230 124 231 148 241" fill="none" class="thin" opacity="0.32"/>
+  </g>
+
+  <!-- Arrow 2: floats in a 120px empty gap. -->
+  <g>
+    <path d="M645 455 C670 446 694 446 720 455" class="arrow"/>
+    <path d="M705 446 L722 455 L705 464" class="arrowHead"/>
+  </g>
+
+  <!-- API 选择 -->
+  <g transform="translate(750 315)" filter="url(#shadow)">
+    <rect x="0" y="0" width="300" height="280" rx="30" fill="#eaf7ff" class="ink"/>
+    <text x="150" y="38" text-anchor="middle" class="font panelTitle">API 选择</text>
+    <rect x="32" y="62" width="236" height="96" rx="22" fill="#17365d" class="ink"/>
+    <text x="67" y="100" class="font" font-size="30" font-weight="900" fill="#fff7c2">repo-to-skill</text>
+    <text x="70" y="130" class="font white">源码 → 路由 → API</text>
+    <circle cx="72" cy="205" r="25" fill="#9ee7ff" class="thin"/>
+    <circle cx="72" cy="205" r="10" fill="none" class="thin"/>
+    <path d="M80 213 l15 15" class="thin"/>
+    <circle cx="150" cy="205" r="25" fill="#c8ecff" class="thin"/>
+    <circle cx="150" cy="188" r="5" fill="#10284d"/>
+    <circle cx="132" cy="222" r="5" fill="#10284d"/>
+    <circle cx="168" cy="222" r="5" fill="#10284d"/>
+    <path d="M150 193 V211 M140 218 L160 194 M160 218 L140 194" class="thin"/>
+    <circle cx="228" cy="205" r="25" fill="#ffd96a" class="thin"/>
+    <path d="M216 199 C230 194 240 195 250 201 M216 211 C230 206 240 207 248 212" class="thin" fill="none"/>
+    <path d="M240 218 l7 7 l12 -18" class="thin" fill="none"/>
+  </g>
+
+  <!-- Arrow 3: floats in a 120px empty gap. -->
+  <g>
+    <path d="M1085 455 C1110 446 1134 446 1160 455" class="arrow"/>
+    <path d="M1145 446 L1162 455 L1145 464" class="arrowHead"/>
+  </g>
+
+  <!-- SKILL -->
+  <g transform="translate(1190 315)" filter="url(#shadow)">
+    <rect x="0" y="0" width="260" height="280" rx="30" fill="#fffdf4" class="ink"/>
+    <text x="130" y="38" text-anchor="middle" class="font panelTitle">可调用技能</text>
+    <path d="M38 66 h82 l20 28 h84 v68 H38 Z" fill="#8ed6ff" class="ink"/>
+    <text x="68" y="188" class="font small">SKILL.md</text>
+    <text x="68" y="224" class="font small">tools/*.yaml</text>
+    <text x="68" y="258" class="font small">call_*.py</text>
+  </g>
+
+  <!-- Install sits below skill; label is offset so the arrow never crosses text. -->
+  <g transform="translate(1190 628)">
+    <rect x="4" y="8" width="96" height="36" rx="14" fill="#fff8c9" class="thin" filter="url(#shadow)"/>
+    <text x="52" y="32" text-anchor="middle" class="font small" fill="#113d7c">--install</text>
+    <path d="M130 0 C130 12 130 22 130 34" class="dash"/>
+    <path d="M122 24 L130 36 L138 24" class="arrowHead"/>
+    <rect x="0" y="62" width="260" height="58" rx="22" fill="#fffdf4" class="thin" filter="url(#shadow)"/>
+    <text x="130" y="99" text-anchor="middle" class="font small">Claude + Agents</text>
+  </g>
+
+  <!-- Bottom feature stickers, equally spaced and isolated from main cards. -->
+  <g transform="translate(105 778)">
+    <rect x="0" y="0" width="220" height="58" rx="21" fill="#dff1ff" class="thin" filter="url(#shadow)"/>
+    <text x="110" y="37" text-anchor="middle" class="font small">源码优先</text>
+    <rect x="258" y="0" width="145" height="58" rx="21" fill="#c8f7ff" class="thin" filter="url(#shadow)"/>
+    <text x="330" y="37" text-anchor="middle" class="font small">默认预览</text>
+    <rect x="438" y="0" width="200" height="58" rx="21" fill="#dcffe8" class="thin" filter="url(#shadow)"/>
+    <text x="538" y="37" text-anchor="middle" class="font small">可安装</text>
+    <rect x="675" y="0" width="220" height="58" rx="21" fill="#ffe5ea" class="thin" filter="url(#shadow)"/>
+    <text x="785" y="37" text-anchor="middle" class="font small">不写原仓库</text>
+    <rect x="932" y="0" width="310" height="58" rx="21" fill="#eee7ff" class="thin" filter="url(#shadow)"/>
+    <text x="1087" y="37" text-anchor="middle" class="font small">按目标选择</text>
+  </g>
+</svg>
