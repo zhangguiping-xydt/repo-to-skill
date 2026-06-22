@@ -160,12 +160,19 @@ The generated package is intentionally vendor-neutral. Different coding-agent to
 
 ## More documentation
 
+- [How it works](docs/methodology.md)
+- [Skill reference](docs/skill-reference.md)
 - [Architecture](docs/architecture.md)
 - [Security](docs/security.md)
 - [Skill output format](docs/skill-output-format.md)
 - [Compatibility](docs/compatibility.md)
 - [Adapters](adapters/README.md)
 - [Evals](docs/evals.md)
+
+Simplified Chinese versions of methodology and skill reference are also available:
+
+- [工作原理](docs/methodology.zh-CN.md)
+- [技能详细解析](docs/skill-reference.zh-CN.md)
 
 ## License and attribution
 
