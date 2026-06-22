@@ -1,0 +1,71 @@
+# Composition plan
+
+This composite skill chains {{ steps_count }} callable HTTP interfaces in a
+fixed order to answer the following goal:
+
+> {{ goal }}
+
+Selection source: `{{ selection_source }}`
+
+## Why this matters
+
+`repo-to-skill` rendered this orchestrator from static interface metadata. It
+did **not** trace data flow in the source code. The mapping between each step's
+response fields and the next step's request fields is left as TODOs for the
+generating agent to resolve.
+
+## Ordered steps
+
+| Order | Slug | Method / route | Handler | Endpoint env |
+|-------|------|----------------|---------|--------------|
+{% for step in steps %}
+| {{ step.order }} | `{{ step.slug }}` | `{{ step.http_method }} {{ step.route }}` | `{{ step.handler_symbol }}` | `{{ step.endpoint_env }}` |
+{% endfor %}
+
+## Required field mappings
+
+For each step N > 0, decide which response fields from step N-1 must be passed
+into step N's request, then edit `orchestrator.py` and replace the
+`# TODO: fill from step_<n>.<field>` markers with concrete code.
+
+{% for step in steps %}
+### step_{{ step.order }} — `{{ step.slug }}`
+
+Request fields (input to this step):
+
+{% if step.request_fields %}
+| Field | JSON type | Required | Source |
+|-------|-----------|----------|--------|
+{% for field in step.request_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} | {{ "yes" if field.required else "no" }} | {{ "TODO: from step_" ~ (step.order - 1) if step.order > 0 else "orchestrator CLI arg" }} |
+{% endfor %}
+{% else %}
+The request payload could not be resolved from source. Pass a raw JSON body via
+`--json-body` once the contract is confirmed.
+{% endif %}
+
+Response fields (output of this step, available to step_{{ step.order + 1 }}):
+
+{% if step.response_fields %}
+| Field | JSON type |
+|-------|-----------|
+{% for field in step.response_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} |
+{% endfor %}
+{% else %}
+The response payload could not be resolved from source.
+{% endif %}
+
+{% endfor %}
+
+## How to resolve the TODOs
+
+1. Read `references/capability-source.md` for the business method and source
+   path of each interface.
+2. For each step N > 0, pick the response field from step N-1 whose semantics
+   match the required request field of step N.
+3. Open `orchestrator.py`. Find every `# TODO: fill from step_<n>.<field>`
+   placeholder. Replace it with code that reads the parsed JSON of step N-1
+   and passes the value to step N's caller CLI.
+4. Re-run `python orchestrator.py --help` and a dry-run preview to confirm the
+   chain still works end-to-end.

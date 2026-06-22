@@ -470,6 +470,126 @@ def _validate_callable_bundle(root: Path, findings: list[str]) -> None:
     _check_machine_paths(root, findings, include_all_skill_files=True)
 
 
+def _check_composite_required_files(root: Path, findings: list[str]) -> None:
+    for relative in (
+        "manifest.yaml",
+        "SKILL.md",
+        "orchestrator.py",
+        "references/composition.md",
+        "references/capability-source.md",
+    ):
+        if not (root / relative).is_file():
+            findings.append(f"missing required file: {relative}")
+    tools = sorted((root / "tools").glob("*.tool.yaml"))
+    scripts = sorted((root / "scripts").glob("call_*.py"))
+    if len(tools) < 2:
+        findings.append(
+            f"callable composite must contain at least 2 tools/*.tool.yaml (found {len(tools)})"
+        )
+    if len(scripts) < 2:
+        findings.append(
+            f"callable composite must contain at least 2 scripts/call_*.py (found {len(scripts)})"
+        )
+    if tools and scripts and len(tools) != len(scripts):
+        findings.append(
+            f"callable composite tools/scripts count mismatch ({len(tools)} tools, {len(scripts)} scripts)"
+        )
+
+
+def _check_composite_manifest(root: Path, findings: list[str]) -> dict[str, Any]:
+    path = root / "manifest.yaml"
+    manifest = _load_yaml_mapping(path)
+    if manifest is None:
+        findings.append("invalid manifest.yaml: root must be a mapping")
+        return {}
+
+    content = _text(path)
+    for key in ("name", "version", "summary", "generated_by"):
+        if key not in manifest:
+            findings.append(f"manifest.yaml missing field: {key}")
+    if manifest.get("kind") != "callable-composite":
+        findings.append("manifest.yaml kind must be 'callable-composite'")
+
+    runtime = manifest.get("runtime") if isinstance(manifest.get("runtime"), dict) else {}
+    if runtime.get("requires_live_system") is not True:
+        findings.append("manifest.yaml runtime.requires_live_system must be true")
+    if runtime.get("transport") != "http":
+        findings.append("manifest.yaml runtime.transport must be 'http'")
+    if not isinstance(runtime.get("interfaces_count"), int) or runtime.get("interfaces_count", 0) < 2:
+        findings.append("manifest.yaml runtime.interfaces_count must be an integer >= 2")
+
+    auth = manifest.get("auth") if isinstance(manifest.get("auth"), dict) else {}
+    if auth.get("required") is not True:
+        findings.append("manifest.yaml auth.required must be true")
+    if auth.get("type") != "bearer":
+        findings.append("manifest.yaml auth.type must be 'bearer'")
+
+    safety = manifest.get("safety")
+    if not isinstance(safety, dict):
+        findings.append("manifest.yaml missing safety boundary: safety")
+    else:
+        for key, expected in REQUIRED_CALLABLE_SAFETY.items():
+            if safety.get(key) != expected:
+                findings.append(f"manifest.yaml safety.{key} must be {expected!r}")
+
+    composition = manifest.get("composition") if isinstance(manifest.get("composition"), dict) else {}
+    if not str(composition.get("goal") or "").strip():
+        findings.append("manifest.yaml composition.goal must be set")
+    if not str(composition.get("source") or "").strip():
+        findings.append("manifest.yaml composition.source must be set")
+    steps = composition.get("steps") if isinstance(composition.get("steps"), list) else []
+    if len(steps) < 2:
+        findings.append("manifest.yaml composition.steps must contain at least 2 entries")
+
+    for token in CALLABLE_MANIFEST_BANNED_TOKENS:
+        if token in content:
+            findings.append(f"manifest.yaml contains forbidden token: {token}")
+
+    return manifest
+
+
+def _check_composite_orchestrator(root: Path, findings: list[str]) -> None:
+    """Validate orchestrator.py: must ast-parse and must contain a TODO marker.
+
+    The TODO marker is repo-to-skill's "field mapping not yet completed" signal
+    to the generating agent. If it's been removed, the orchestrator is either
+    incomplete (and someone forgot) or has been hand-edited past the
+    deterministic scaffolding (which we still flag so reviewers notice).
+    """
+    path = root / "orchestrator.py"
+    if not path.is_file():
+        return  # already flagged by required-files check
+    content = _text(path)
+    try:
+        import ast
+
+        ast.parse(content)
+    except SyntaxError as exc:
+        findings.append(f"orchestrator.py syntax error: {exc.msg} (line {exc.lineno})")
+        return
+    for token in CALLABLE_DANGEROUS_SCRIPT_TOKENS:
+        if token in content:
+            findings.append(f"dangerous token in orchestrator.py: {token}")
+    if _BARE_OPEN_RE.search(content):
+        findings.append("dangerous token in orchestrator.py: bare open(")
+    if _SCRIPT_WRITE_MODE_RE.search(content):
+        findings.append("dangerous token in orchestrator.py: writable open mode")
+    if "# TODO: fill from step_" not in content:
+        findings.append(
+            "orchestrator.py missing '# TODO: fill from step_' marker; "
+            "field mapping must be left as a TODO for the generating agent"
+        )
+
+
+def _validate_callable_composite(root: Path, findings: list[str]) -> None:
+    _check_composite_required_files(root, findings)
+    _check_composite_manifest(root, findings)
+    # Reuse bundle consistency check for tool/script env alignment.
+    _check_callable_bundle_consistency(root, findings)
+    _check_composite_orchestrator(root, findings)
+    _check_machine_paths(root, findings, include_all_skill_files=True)
+
+
 # --------------------------------------------------------------------------- #
 # Entry point
 # --------------------------------------------------------------------------- #
@@ -488,6 +608,8 @@ def validate_skill(skill_path: Path) -> SkillValidationReport:
         _validate_callable(root, findings)
     elif kind == "callable-bundle":
         _validate_callable_bundle(root, findings)
+    elif kind == "callable-composite":
+        _validate_callable_composite(root, findings)
     else:
         _validate_readonly(root, findings)
 

@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Orchestrate the {{ project_name }} composite: {{ goal }}
+
+This script chains {{ steps_count }} callable HTTP interfaces in a fixed order:
+
+{% for step in steps %}
+  step_{{ step.order }}: {{ step.http_method }} {{ step.route }}  (caller: scripts/call_{{ step.module }}.py)
+{% endfor %}
+
+⚠️ FIELD MAPPING IS NOT COMPLETE.
+
+`repo-to-skill` rendered this orchestrator deterministically from interface
+metadata. It did NOT analyze the source code's data flow. Each step after
+step_0 contains `# TODO: fill from step_<n>.<field>` markers that MUST be
+resolved before an end user can run this skill.
+
+Safety choices:
+  * Every underlying caller previews by default. This orchestrator forwards
+    --execute only when the caller passes --execute AND every step's
+    endpoint env var is set.
+  * Endpoints and auth tokens are read from per-step environment variables.
+    They are never hard-coded.
+  * If any step's endpoint env is unset, the orchestrator stays in preview
+    mode regardless of --execute.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import io
+import json
+import os
+import sys
+from contextlib import redirect_stdout
+from pathlib import Path
+
+SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
+
+# Per-step endpoint/token env var names, kept in sync with manifest.yaml.
+{% for step in steps %}
+STEP_{{ step.order }}_ENDPOINT_ENV = "{{ step.endpoint_env }}"
+STEP_{{ step.order }}_TOKEN_ENV = "{{ step.token_env }}"
+STEP_{{ step.order }}_SCRIPT = "call_{{ step.module }}.py"
+STEP_{{ step.order }}_SLUG = "{{ step.slug }}"
+{% endfor %}
+
+STEPS = [
+{% for step in steps %}
+    {
+        "order": {{ step.order }},
+        "slug": STEP_{{ step.order }}_SLUG,
+        "endpoint_env": STEP_{{ step.order }}_ENDPOINT_ENV,
+        "token_env": STEP_{{ step.order }}_TOKEN_ENV,
+        "script": STEP_{{ step.order }}_SCRIPT,
+    },
+{% endfor %}
+]
+
+
+def _load_caller(script_name: str):
+    """Import a sibling caller script as a module and return its main(argv) function."""
+    path = SCRIPTS_DIR / script_name
+    if not path.is_file():
+        raise FileNotFoundError(f"caller script missing: {path}")
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load caller: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.main
+
+
+def _run_step(step: dict, argv: list[str], *, execute: bool) -> dict:
+    """Invoke a step's caller and return its parsed JSON response.
+
+    In preview mode (the default), this does NOT call the underlying caller's
+    argparse main, because required CLI flags would fail before the caller's
+    dry-run branch runs. Instead, preview mode just prints the planned argv
+    and returns a placeholder result, letting the orchestrator show the
+    end-to-end chain shape without touching the network.
+
+    In execute mode (every step's endpoint env is set AND --execute was
+    passed), the real caller runs and its JSON stdout is captured.
+    """
+    print(f"[step_{step['order']}] {step['slug']} -> argv: {argv}")
+    if not execute:
+        print(f"[step_{step['order']}] preview: caller not invoked; field mappings must be resolved before --execute.")
+        return {"__preview__": True}
+    main = _load_caller(step["script"])
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        rc = main(argv)
+    output = buffer.getvalue()
+    if output.strip():
+        print(f"[step_{step['order']}] stdout:")
+        print(output.rstrip())
+    try:
+        parsed = json.loads(output)
+    except json.JSONDecodeError:
+        parsed = {}
+    parsed.setdefault("__rc__", rc)
+    return parsed
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Orchestrate the {{ composite_slug }} composite for: {{ goal }}. "
+            "Each step previews by default and only runs live with --execute and "
+            "every step's *_ENDPOINT env var set."
+        ),
+    )
+    parser.add_argument(
+        "--employee-info",
+        default="",
+        help="Identifier for the employee this composite operates on (passed to step_0).",
+    )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Send live HTTP calls for every step (default is preview only).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Force preview; never send live HTTP calls.",
+    )
+    args = parser.parse_args(argv)
+
+    # An orchestrator can only go live if every step's endpoint env is set;
+    # otherwise we stay in preview so no partial chain fires.
+    missing_envs = [
+        step["endpoint_env"]
+        for step in STEPS
+        if not os.environ.get(step["endpoint_env"])
+    ]
+    execute = bool(args.execute and not args.dry_run and not missing_envs)
+    if missing_envs:
+        print(
+            "[orchestrator] preview mode: missing endpoint envs: "
+            + ", ".join(missing_envs)
+        )
+
+    # ------------------------------------------------------------------ #
+    # step_0: {{ steps[0].slug }} — first call, uses entry args directly.
+    # ------------------------------------------------------------------ #
+    step_0_argv = [
+        "--employee-info",
+        str(args.employee_info),
+    ]
+    if execute:
+        step_0_argv.append("--execute")
+    step_0 = _run_step(STEPS[0], step_0_argv, execute=execute)
+{% for step in steps[1:] %}
+    # ------------------------------------------------------------------ #
+    # step_{{ step.order }}: {{ step.slug }} — depends on step_{{ step.order - 1 }} output.
+    # TODO: fill from step_{{ step.order - 1 }}.<response_field>
+    #       See references/composition.md for the previous step's response
+    #       fields and capability-source.md for business semantics. Replace
+    #       the blank string below with the real value, e.g.:
+    #         str(step_{{ step.order - 1 }}.get("FieldName", ""))
+    #       If the next step needs multiple fields, construct a JSON body:
+    #         json.dumps({"field_a": step_{{ step.order - 1 }}["A"], ...})
+    # ------------------------------------------------------------------ #
+    step_{{ step.order }}_payload = ""  # TODO: fill from step_{{ step.order - 1 }}.<response_field>
+    step_{{ step.order }}_argv = [
+        "--json-body",
+        step_{{ step.order }}_payload,
+    ]
+    if execute:
+        step_{{ step.order }}_argv.append("--execute")
+    step_{{ step.order }} = _run_step(STEPS[{{ step.order }}], step_{{ step.order }}_argv, execute=execute)
+{% endfor %}
+
+    # ------------------------------------------------------------------ #
+    # Final result: print the last step's response.
+    # Replace this if the actual business answer is a derived value (e.g. a
+    # specific field or an arithmetic combination of multiple steps).
+    # ------------------------------------------------------------------ #
+    final_step = STEPS[-1]
+    final_result = locals()["step_" + str(final_step["order"])]
+    print("[orchestrator] final step result:")
+    print(json.dumps(final_result, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

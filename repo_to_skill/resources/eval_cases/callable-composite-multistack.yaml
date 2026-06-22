@@ -1,0 +1,36 @@
+name: callable-composite-multistack
+fixture: examples/callable-multistack
+mode: callable-composite
+goal: workload calculate hours and leave balance
+expect:
+  project_name: callable-multistack
+  files:
+    analyze_artifacts:
+      - scan.json
+      - profile.json
+      - capability_evidence.json
+      - capability_graph.json
+      - skill_spec.yaml
+      - verification_report.json
+      - confidence-report.md
+      - callable_capabilities.json
+  callable:
+    min_interfaces: 3
+    min_composite_interfaces: 2
+    stacks:
+      - dotnet
+      - java
+      - python
+    composite_files:
+      - manifest.yaml
+      - SKILL.md
+      - orchestrator.py
+      - references/composition.md
+      - references/capability-source.md
+    orchestrator_must_contain:
+      - "# TODO: fill from step_"
+  safety:
+    forbidden_output_tokens:
+      - /media/private
+      - /home/
+      - /tmp

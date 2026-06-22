@@ -8,7 +8,21 @@ from typing import Any
 
 import yaml
 
-from repo_to_skill.skillgen.callable_selector import CallableBundleSelection, select_callable_interfaces
+from repo_to_skill.skillgen.callable_selector import (
+    CallableBundleSelection,
+    select_callable_interfaces,
+)
+
+
+@dataclass(frozen=True)
+class CompositeStep:
+    """A single API call in a fixed-order composite chain."""
+
+    order: int
+    slug: str
+    interface: dict[str, Any]
+    score: float
+    reasons: list[str]
 
 
 @dataclass(frozen=True)
@@ -89,6 +103,32 @@ class CallableBundlePlan:
         value = self.selection.need_summary or self.project_name
         cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip().lower()).strip("-._")
         return cleaned or "callable-bundle"
+
+
+@dataclass(frozen=True)
+class CallableCompositePlan:
+    target: Path
+    analysis_root: Path
+    scan: dict[str, Any]
+    profile: dict[str, Any]
+    callable_capabilities: dict[str, Any]
+    goal: str
+    selection: CallableBundleSelection
+    steps: list[CompositeStep]
+
+    @property
+    def project_name(self) -> str:
+        return str(
+            self.callable_capabilities.get("project")
+            or self.profile.get("name")
+            or "local-repository"
+        )
+
+    @property
+    def composite_slug(self) -> str:
+        value = self.goal or self.selection.need_summary or self.project_name
+        cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip().lower()).strip("-._")
+        return cleaned or "callable-composite"
 
 
 
@@ -226,4 +266,73 @@ def plan_callable_bundle(
         profile=base.profile,
         callable_capabilities=base.callable_capabilities,
         selection=selection,
+    )
+
+
+def plan_callable_composite(
+    target: Path,
+    analysis: Path,
+    *,
+    goal: str,
+    selected_slugs: list[str] | None,
+    selection_json: Path | None,
+    max_interfaces: int,
+) -> CallableCompositePlan:
+    """Build a render plan for a composite (A->B->...) callable skill.
+
+    Reuses :func:`plan_callable_skills` to load ``callable_capabilities.json``
+    and :func:`select_callable_interfaces` to pick the ordered API chain. The
+    chain must have at least two steps — orchestration implies >1 call.
+    """
+    if max_interfaces < 2:
+        raise ValueError("max_interfaces for callable-composite must be at least 2")
+
+    base = plan_callable_skills(target, analysis)
+    goal_summary = goal
+    selection_source = "deterministic"
+    slugs = selected_slugs
+
+    if selection_json is not None:
+        data = _load_selection_json(selection_json)
+        goal_summary = str(data.get("need_summary") or goal or "")
+        slugs = [str(value) for value in data.get("selected_slugs") or []]
+        selection_source = str(data.get("selection_source") or "agentic")
+    elif selected_slugs:
+        selection_source = "agentic"
+
+    selection = select_callable_interfaces(
+        base.interfaces,
+        goal_summary,
+        selected_slugs=slugs,
+        max_interfaces=max_interfaces,
+        selection_source=selection_source,
+    )
+    if not selection.items:
+        raise ValueError("no callable interfaces matched the requested goal")
+    if len(selection.items) < 2:
+        raise ValueError(
+            "callable-composite requires at least 2 interfaces; only matched "
+            f"{len(selection.items)} (use --selected-slugs to add more)"
+        )
+
+    steps = [
+        CompositeStep(
+            order=index,
+            slug=str(item.interface.get("slug") or f"step-{index}"),
+            interface=item.interface,
+            score=item.score,
+            reasons=list(item.reasons),
+        )
+        for index, item in enumerate(selection.items)
+    ]
+
+    return CallableCompositePlan(
+        target=base.target,
+        analysis_root=base.analysis_root,
+        scan=base.scan,
+        profile=base.profile,
+        callable_capabilities=base.callable_capabilities,
+        goal=goal_summary,
+        selection=selection,
+        steps=steps,
     )

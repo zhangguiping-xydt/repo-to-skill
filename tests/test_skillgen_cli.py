@@ -453,3 +453,140 @@ def test_generate_callable_bundle_requires_need_or_selection(tmp_path) -> None:
     assert result.exit_code != 0
     assert "need must be provided" in result.stdout
     assert "Traceback" not in result.stdout
+
+
+def test_generate_callable_composite_from_goal_and_selected_slugs(tmp_path) -> None:
+    repo = _callable_python_repo(tmp_path)
+    analysis = tmp_path / "callable-analysis"
+    output = tmp_path / "composite-output"
+    analyze = runner.invoke(app, ["analyze", str(repo), "--output", str(analysis)])
+    assert analyze.exit_code == 0, analyze.stdout
+
+    # Discover available slugs first so the test is not brittle to fixture changes.
+    import json as _json
+
+    caps = _json.loads((analysis / "callable_capabilities.json").read_text(encoding="utf-8"))
+    available_slugs = [i["slug"] for i in caps["interfaces"]]
+    assert len(available_slugs) >= 2, "fixture must expose at least 2 callable interfaces"
+    slugs_arg = ",".join(available_slugs[:2])
+
+    result = runner.invoke(
+        app,
+        [
+            "generate",
+            str(repo),
+            "--analysis",
+            str(analysis),
+            "--output",
+            str(output),
+            "--mode",
+            "callable-composite",
+            "--goal",
+            "根据加班时长查询调休天数",
+            "--selected-slugs",
+            slugs_arg,
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    composites = [p for p in output.iterdir() if p.is_dir()]
+    assert len(composites) == 1
+    composite = composites[0]
+    assert (composite / "orchestrator.py").is_file()
+    assert (composite / "manifest.yaml").is_file()
+    assert (composite / "references" / "composition.md").is_file()
+    assert (composite / "references" / "capability-source.md").is_file()
+    assert len(list((composite / "tools").glob("*.tool.yaml"))) == 2
+    assert len(list((composite / "scripts").glob("call_*.py"))) == 2
+    assert "Validation: PASS" in result.stdout
+
+
+def test_generate_callable_composite_requires_goal(tmp_path) -> None:
+    repo = _callable_python_repo(tmp_path)
+    analysis = tmp_path / "callable-analysis"
+    output = tmp_path / "composite-output"
+    analyze = runner.invoke(app, ["analyze", str(repo), "--output", str(analysis)])
+    assert analyze.exit_code == 0, analyze.stdout
+
+    result = runner.invoke(
+        app,
+        [
+            "generate",
+            str(repo),
+            "--analysis",
+            str(analysis),
+            "--output",
+            str(output),
+            "--mode",
+            "callable-composite",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "--goal is required" in result.stdout
+    assert "Traceback" not in result.stdout
+
+
+def test_generate_callable_composite_fails_for_unknown_slug(tmp_path) -> None:
+    repo = _callable_python_repo(tmp_path)
+    analysis = tmp_path / "callable-analysis"
+    output = tmp_path / "composite-output"
+    analyze = runner.invoke(app, ["analyze", str(repo), "--output", str(analysis)])
+    assert analyze.exit_code == 0, analyze.stdout
+
+    result = runner.invoke(
+        app,
+        [
+            "generate",
+            str(repo),
+            "--analysis",
+            str(analysis),
+            "--output",
+            str(output),
+            "--mode",
+            "callable-composite",
+            "--goal",
+            "anything",
+            "--selected-slugs",
+            "missing",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "unknown callable interface slug: missing" in result.stdout
+    assert "Traceback" not in result.stdout
+
+
+def test_generate_callable_composite_rejects_single_slug(tmp_path) -> None:
+    repo = _callable_python_repo(tmp_path)
+    analysis = tmp_path / "callable-analysis"
+    output = tmp_path / "composite-output"
+    analyze = runner.invoke(app, ["analyze", str(repo), "--output", str(analysis)])
+    assert analyze.exit_code == 0, analyze.stdout
+
+    import json as _json
+
+    caps = _json.loads((analysis / "callable_capabilities.json").read_text(encoding="utf-8"))
+    first_slug = caps["interfaces"][0]["slug"]
+
+    result = runner.invoke(
+        app,
+        [
+            "generate",
+            str(repo),
+            "--analysis",
+            str(analysis),
+            "--output",
+            str(output),
+            "--mode",
+            "callable-composite",
+            "--goal",
+            "anything",
+            "--selected-slugs",
+            first_slug,
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "at least 2" in result.stdout.lower() or "two" in result.stdout.lower()
+    assert "Traceback" not in result.stdout

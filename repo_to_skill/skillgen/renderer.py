@@ -8,7 +8,12 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from repo_to_skill.reverse.callable_capabilities import json_type_for
-from repo_to_skill.skillgen.planner import CallableBundlePlan, CallableSkillPlan, SkillPlan
+from repo_to_skill.skillgen.planner import (
+    CallableBundlePlan,
+    CallableCompositePlan,
+    CallableSkillPlan,
+    SkillPlan,
+)
 
 
 _ABSOLUTE_PATH_PATTERNS = (
@@ -697,6 +702,84 @@ def render_callable_bundle(plan: CallableBundlePlan, output: Path) -> Path:
         }
         for relative_path, template_name in outputs.items():
             rendered = env.get_template(template_name).render(**interface)
+            rendered = _strip_machine_paths(rendered)
+            (skill_root / relative_path).write_text(rendered, encoding="utf-8")
+
+    return skill_root
+
+
+def _composite_skill_description(project_name: str, goal: str, steps_count: int) -> str:
+    """Trigger-shaped SKILL.md description for a callable composite."""
+    cleaned_goal = _inline_text(goal, "the requested business goal")
+    return _inline_text(
+        f"Use when you need the final business answer to '{cleaned_goal}' from the "
+        f"{project_name} system by chaining its {steps_count} HTTP APIs in order, "
+        f"instead of reimplementing the composition logic."
+    )
+
+
+def _composite_context(plan: CallableCompositePlan) -> dict[str, Any]:
+    project_name = _inline_text(plan.project_name, "local-repository")
+    composite_slug = _safe_name(plan.composite_slug)
+    steps: list[dict[str, Any]] = []
+    used_modules: dict[str, int] = {}
+    for order_index, plan_step in enumerate(plan.steps):
+        raw_slug = _safe_name(str(plan_step.interface.get("slug") or f"step-{order_index}"))
+        count = used_modules.get(raw_slug, 0)
+        used_modules[raw_slug] = count + 1
+        slug = raw_slug if not count else f"{raw_slug}-{count + 1}"
+        module = _python_identifier(slug)
+        context = _callable_context(plan_step.interface, project_name, slug, module)
+        context["order"] = plan_step.order
+        context["selection_score"] = plan_step.score
+        context["selection_reasons"] = [_inline_text(reason) for reason in plan_step.reasons]
+        steps.append(context)
+
+    goal = _inline_text(plan.goal, "requested business goal")
+    steps_count = len(steps)
+    return {
+        "project_name": project_name,
+        "composite_slug": composite_slug,
+        "goal": goal,
+        "steps": steps,
+        "steps_count": steps_count,
+        "skill_description": _composite_skill_description(project_name, goal, steps_count),
+        "selection_source": _inline_text(plan.selection.selection_source, "deterministic"),
+        "generated_by": "repo-to-skill",
+    }
+
+
+def render_callable_composite(plan: CallableCompositePlan, output: Path) -> Path:
+    """Render one ordered callable-composite skill (A->B->...)."""
+    output_root = output.expanduser().resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    env = _template_env()
+    context = _composite_context(plan)
+    skill_root = output_root / context["composite_slug"]
+    (skill_root / "scripts").mkdir(parents=True, exist_ok=True)
+    (skill_root / "tools").mkdir(parents=True, exist_ok=True)
+    (skill_root / "references").mkdir(parents=True, exist_ok=True)
+
+    composite_outputs = {
+        "SKILL.md": "callable_composite/SKILL.md.j2",
+        "manifest.yaml": "callable_composite/manifest.yaml.j2",
+        "orchestrator.py": "callable_composite/orchestrator.py.j2",
+        "references/composition.md": "callable_composite/references/composition.md.j2",
+        "references/capability-source.md": "callable_bundle/references/capability-source.md.j2",
+    }
+    for relative_path, template_name in composite_outputs.items():
+        rendered = env.get_template(template_name).render(**context)
+        rendered = _strip_machine_paths(rendered)
+        (skill_root / relative_path).write_text(rendered, encoding="utf-8")
+
+    for step in context["steps"]:
+        outputs = {
+            f"tools/{step['module']}.tool.yaml": "callable/tools/tool.yaml.j2",
+            f"scripts/call_{step['module']}.py": "callable/scripts/call.py.j2",
+        }
+        for relative_path, template_name in outputs.items():
+            rendered = env.get_template(template_name).render(**step)
             rendered = _strip_machine_paths(rendered)
             (skill_root / relative_path).write_text(rendered, encoding="utf-8")
 

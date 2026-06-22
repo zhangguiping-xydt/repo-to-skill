@@ -178,6 +178,63 @@ def check_callable_bundle_validation(report: SkillValidationReport) -> EvalCheck
     return EvalCheck("callable bundle validation", False, "; ".join(report.findings) or "validator returned FAIL")
 
 
+def check_callable_composite(skill_root: Path, case: dict[str, Any]) -> EvalCheck:
+    expected = case.get("expect", {}).get("callable", {})
+    composite_files = expected.get(
+        "composite_files",
+        [
+            "manifest.yaml",
+            "SKILL.md",
+            "orchestrator.py",
+            "references/composition.md",
+            "references/capability-source.md",
+        ],
+    )
+    missing: list[str] = []
+    for relative in composite_files:
+        if not (skill_root / str(relative)).is_file():
+            missing.append(str(relative))
+    tools = sorted(skill_root.glob("tools/*.tool.yaml"))
+    scripts = sorted(skill_root.glob("scripts/call_*.py"))
+    if not tools:
+        missing.append("tools/*.tool.yaml")
+    if not scripts:
+        missing.append("scripts/call_*.py")
+    if tools and scripts and len(tools) != len(scripts):
+        missing.append("tools/scripts count mismatch")
+    minimum = expected.get("min_composite_interfaces")
+    if isinstance(minimum, int) and len(tools) < minimum:
+        missing.append(f"expected at least {minimum} composite interfaces, found {len(tools)}")
+
+    orchestrator = skill_root / "orchestrator.py"
+    required_markers = expected.get("orchestrator_must_contain", [])
+    if orchestrator.is_file():
+        content = orchestrator.read_text(encoding="utf-8")
+        for marker in required_markers:
+            if marker not in content:
+                missing.append(f"orchestrator.py missing marker: {marker}")
+    else:
+        missing.append("orchestrator.py")
+
+    if missing:
+        return EvalCheck("callable composite", False, "missing: " + ", ".join(missing))
+    return EvalCheck(
+        "callable composite",
+        True,
+        f"composite includes {len(tools)} callable tools and orchestrator with required markers",
+    )
+
+
+def check_callable_composite_validation(report: SkillValidationReport) -> EvalCheck:
+    if report.status == "PASS":
+        return EvalCheck("callable composite validation", True, "validator returned PASS")
+    return EvalCheck(
+        "callable composite validation",
+        False,
+        "; ".join(report.findings) or "validator returned FAIL",
+    )
+
+
 def check_no_forbidden_tokens_in_packs(skill_roots: list[Path], forbidden_tokens: list[str]) -> EvalCheck:
     leaks: list[str] = []
     for root in skill_roots:

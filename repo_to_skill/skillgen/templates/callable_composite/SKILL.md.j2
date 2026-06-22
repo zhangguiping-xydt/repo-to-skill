@@ -1,0 +1,74 @@
+---
+name: {{ composite_slug }}
+description: {{ skill_description | tojson }}
+kind: callable-composite
+---
+
+# {{ project_name }} · callable composite ({{ steps_count }} steps)
+
+This skill chains {{ steps_count }} live HTTP APIs of the {{ project_name }}
+system in a fixed order to answer one business goal:
+
+> {{ goal }}
+
+## Ordered steps
+
+{% for step in steps %}
+{{ step.order + 1 }}. `{{ step.slug }}` — `{{ step.http_method }} {{ step.route }}`
+   via `{{ step.handler_symbol }}`
+{% endfor %}
+
+## When to use
+
+- You need the final business answer for the goal above (for example: an
+  employee's available compensatory leave days, derived from their overtime).
+- Each step must run against the live system — the source repository is the
+   source of truth.
+
+## When NOT to use
+
+- You only need static code understanding; use a read-only repo map skill.
+- You do not have endpoint and token credentials for every step in the chain.
+
+## ⚠️ Required: complete the field mapping before handing this to end users
+
+`repo-to-skill` rendered this skill deterministically from
+`callable_capabilities.json`. It did **not** analyze the source code's data
+flow. The orchestrator currently contains `# TODO: fill from step_<n>.<field>`
+markers that must be replaced with real field-pass-through logic before a
+non-agent end user can run this skill.
+
+As the coding agent who generated this skill, you must:
+
+1. Open `references/composition.md`. For each step N > 0, it lists the
+   previous step's response fields and the current step's request fields.
+2. Decide which response field(s) from step N-1 must be passed as input to
+   step N, based on the business semantics described in
+   `references/capability-source.md` (read the business method, the field
+   names, and the original source if needed).
+3. Edit `orchestrator.py`. Replace every `# TODO: fill from step_<n>.<field>`
+   placeholder with concrete code that reads the value from the previous step's
+   parsed JSON and passes it via the appropriate CLI argument to the next
+   caller.
+4. Run `python orchestrator.py --help` and a dry-run preview to confirm the
+   chain still parses and runs end-to-end without real network access.
+
+Until the TODOs are resolved, the orchestrator runs only in dry-run preview
+mode and produces no real business answer.
+
+## How the chain runs
+
+```bash
+python orchestrator.py --employee-info E001
+```
+
+Every underlying caller previews by default and sends a live request only when
+`--execute` is passed and the corresponding `*_ENDPOINT` environment variable
+is configured. Tokens are read from `*_TOKEN` env vars and redacted in
+previews. See `manifest.yaml` for the full endpoint/token env list.
+
+## Safety
+
+This is a callable composite: it can reach live HTTP systems when explicitly
+executed. It does not install dependencies, does not modify the source
+repository, and defaults to dry-run previews.

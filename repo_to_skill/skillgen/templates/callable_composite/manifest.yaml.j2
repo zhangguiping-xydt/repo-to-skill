@@ -1,0 +1,38 @@
+name: {{ composite_slug }}
+version: 0.1.0
+kind: callable-composite
+summary: {{ ("Callable composite for " ~ goal) | tojson }}
+
+runtime:
+  requires_live_system: true
+  transport: http
+  interfaces_count: {{ steps_count }}
+
+auth:
+  required: true
+  type: bearer
+
+safety:
+  dry_run_default: true
+  network: requires-explicit-endpoint
+  dependency_install: disabled
+  target_repository_writes: disabled
+
+composition:
+  goal: {{ goal | tojson }}
+  source: {{ selection_source }}
+  steps_count: {{ steps_count }}
+  steps:
+{% for step in steps %}
+    - order: {{ step.order }}
+      slug: {{ step.slug | tojson }}
+      method: {{ step.http_method }}
+      route: {{ step.route | tojson }}
+      handler: {{ step.handler_symbol | tojson }}
+      endpoint_env: {{ step.endpoint_env }}
+      token_env: {{ step.token_env }}
+      tool: {{ step.tool_name | tojson }}
+      caller: {{ ("scripts/call_" ~ step.module ~ ".py") | tojson }}
+{% endfor %}
+
+generated_by: {{ generated_by }}

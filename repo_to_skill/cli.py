@@ -19,8 +19,18 @@ from repo_to_skill.reverse.skill_spec import build_skill_spec
 from repo_to_skill.reverse.verification import verify_static_outputs
 from repo_to_skill.scanner.filesystem import scan_repository
 from repo_to_skill.skillgen.installer import install_skill
-from repo_to_skill.skillgen.planner import plan_callable_bundle, plan_callable_skills, plan_skill
-from repo_to_skill.skillgen.renderer import render_callable_bundle, render_callable_skills, render_skill
+from repo_to_skill.skillgen.planner import (
+    plan_callable_bundle,
+    plan_callable_composite,
+    plan_callable_skills,
+    plan_skill,
+)
+from repo_to_skill.skillgen.renderer import (
+    render_callable_bundle,
+    render_callable_composite,
+    render_callable_skills,
+    render_skill,
+)
 from repo_to_skill.skillgen.validator import SkillValidationReport, validate_skill
 from repo_to_skill.workspace.paths import resolve_target_and_output
 from repo_to_skill.workspace.store import ArtifactStore
@@ -168,6 +178,39 @@ def _generate_callable_bundle(
     return report.status == "PASS"
 
 
+def _generate_callable_composite(
+    target: Path,
+    analysis: Path,
+    output: Path,
+    *,
+    goal: str,
+    max_interfaces: int,
+    selected_slugs: str | None,
+    selection_json: Path | None,
+    install: bool = False,
+) -> bool:
+    target_root, output_root = resolve_target_and_output(target, output)
+    base = plan_callable_skills(target_root, analysis)
+    if not base.interfaces:
+        console.print(_no_interface_guidance(base.profile.get("languages") or []))
+        return True
+    plan = plan_callable_composite(
+        target_root,
+        analysis,
+        goal=goal,
+        selected_slugs=_parse_slugs(selected_slugs),
+        selection_json=selection_json,
+        max_interfaces=max_interfaces,
+    )
+    composite = render_callable_composite(plan, output_root)
+    report = validate_skill(composite)
+    console.print(f"Generated callable composite: {composite}", soft_wrap=True)
+    _print_validation(report)
+    if install and report.status == "PASS":
+        _install_and_report(composite)
+    return report.status == "PASS"
+
+
 @app.command()
 def analyze(
     target: Path = typer.Argument(..., help="Local repository to analyze."),
@@ -193,10 +236,15 @@ def generate(
     mode: str = typer.Option(
         "repo-map",
         "--mode",
-        help="Skill kind to generate: 'repo-map', 'callable', or 'callable-bundle'.",
+        help="Skill kind to generate: 'repo-map', 'callable', 'callable-bundle', or 'callable-composite'.",
     ),
     need: str = typer.Option("", "--need", help="User goal for callable-bundle interface selection."),
-    max_interfaces: int = typer.Option(12, "--max-interfaces", help="Maximum callable interfaces in a bundle."),
+    goal: str = typer.Option(
+        "",
+        "--goal",
+        help="Business goal for callable-composite (A->B->... chain). Required for callable-composite mode.",
+    ),
+    max_interfaces: int = typer.Option(12, "--max-interfaces", help="Maximum callable interfaces in a bundle or composite."),
     selected_slugs: str | None = typer.Option(
         None,
         "--selected-slugs",
@@ -214,8 +262,10 @@ def generate(
     ),
 ) -> None:
     """Generate a reviewable local AI coding agent skill pack from existing analysis artifacts."""
-    if mode not in {"repo-map", "callable", "callable-bundle"}:
-        console.print(f"Unknown mode: {mode}; expected 'repo-map', 'callable', or 'callable-bundle'.")
+    if mode not in {"repo-map", "callable", "callable-bundle", "callable-composite"}:
+        console.print(
+            f"Unknown mode: {mode}; expected 'repo-map', 'callable', 'callable-bundle', or 'callable-composite'."
+        )
         raise typer.Exit(code=1)
     try:
         if mode == "callable":
@@ -227,6 +277,20 @@ def generate(
                 output,
                 need=need,
                 max_interfaces=max_interfaces,
+                selected_slugs=selected_slugs,
+                selection_json=selection_json,
+                install=install,
+            )
+        elif mode == "callable-composite":
+            if not goal.strip():
+                console.print("--goal is required for --mode callable-composite.")
+                raise typer.Exit(code=1)
+            all_pass = _generate_callable_composite(
+                target,
+                analysis,
+                output,
+                goal=goal,
+                max_interfaces=max_interfaces if max_interfaces >= 2 else 2,
                 selected_slugs=selected_slugs,
                 selection_json=selection_json,
                 install=install,
