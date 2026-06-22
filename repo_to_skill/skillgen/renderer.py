@@ -430,7 +430,8 @@ def _callable_args(request: dict[str, Any]) -> list[dict[str, Any]]:
         raw_type = _py_literal(str(field.get("type") or ""))
         schema_type, _ = _schema_type(str(field.get("type") or ""))
         required = bool(field.get("required"))
-        help_text = _py_literal(f"{wire} ({raw_type or schema_type}).")
+        location = str(field.get("location") or "body")
+        help_text = _py_literal(f"{wire} ({raw_type or schema_type}, {location}).")
         pieces = [f'"{cli}"', f'dest="{dest}"']
         if required:
             pieces.append("required=True")
@@ -450,6 +451,7 @@ def _callable_args(request: dict[str, Any]) -> list[dict[str, Any]]:
                 "cli": cli,
                 "required": required,
                 "is_bool": schema_type == "boolean",
+                "location": location,
                 "add_argument": "parser.add_argument(" + ", ".join(pieces) + ")",
             }
         )
@@ -532,6 +534,8 @@ def _callable_context(interface: dict[str, Any], project_name: str, slug: str, m
     side_effects = _inline_text(str(interface.get("side_effects") or "unknown")) or "unknown"
 
     args = _callable_args(request)
+    path_args = [arg for arg in args if arg.get("location") == "path"]
+    body_args = [arg for arg in args if arg.get("location") != "path"]
     request_fields = _callable_schema_fields(request)
     response_fields = _callable_schema_fields(response)
     request_required = [field["wire"] for field in request_fields if field["required"]]
@@ -555,6 +559,7 @@ def _callable_context(interface: dict[str, Any], project_name: str, slug: str, m
         "framework": framework,
         "http_method": http_method,
         "route": route,
+        "has_path_params": bool(path_args),
         "handler_symbol": handler_symbol,
         "handler_path": handler_path,
         "business_method": business_method,
@@ -569,7 +574,10 @@ def _callable_context(interface: dict[str, Any], project_name: str, slug: str, m
         "request_notes": _inline_list(request.get("notes")),
         "response_notes": _inline_list(response.get("notes")),
         "args": args,
+        "path_args": path_args,
+        "body_args": body_args,
         "has_args": bool(args),
+        "has_body_args": bool(body_args),
         "request_fields": request_fields,
         "response_fields": response_fields,
         "request_required": request_required,

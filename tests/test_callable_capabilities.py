@@ -398,6 +398,80 @@ def test_detects_fastapi_route_with_pydantic_models(tmp_path: Path) -> None:
     assert response_names == {"days", "hours"}
 
 
+FASTAPI_PATH_PARAM = """from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+
+class Employee(BaseModel):
+    id: int
+    name: str
+    department: str
+
+
+@app.get("/employees/{employee_id}", response_model=Employee)
+def get_employee(employee_id: int):
+    return Employee(id=employee_id, name="Alice", department="Eng")
+"""
+
+
+def test_detects_fastapi_path_param_as_request_field(tmp_path: Path) -> None:
+    root = tmp_path / "py"
+    scan = _write_scan(root, {"main.py": ("Python", FASTAPI_PATH_PARAM)})
+
+    result = build_callable_capabilities(scan, root)
+
+    fastapi = [i for i in result.interfaces if i.framework == "fastapi"]
+    assert len(fastapi) == 1
+    interface = fastapi[0]
+    assert interface.http_method == "GET"
+    assert interface.route == "/employees/{employee_id}"
+
+    request_names = {f.name for f in interface.request.fields}
+    assert "employee_id" in request_names
+    employee_id = next(f for f in interface.request.fields if f.name == "employee_id")
+    assert employee_id.location == "path"
+    assert employee_id.required is True
+    assert employee_id.type == "int"
+
+
+FASTAPI_DICT_BODY = """from fastapi import FastAPI
+from typing import Dict
+
+app = FastAPI()
+
+
+@app.post("/employees/{employee_id}/transfer")
+def transfer_employee(employee_id: int, payload: dict):
+    return {"id": employee_id}
+"""
+
+
+def test_detects_fastapi_dict_body_without_pydantic_model(tmp_path: Path) -> None:
+    root = tmp_path / "py"
+    scan = _write_scan(root, {"main.py": ("Python", FASTAPI_DICT_BODY)})
+
+    result = build_callable_capabilities(scan, root)
+
+    fastapi = [i for i in result.interfaces if i.framework == "fastapi"]
+    assert len(fastapi) == 1
+    interface = fastapi[0]
+    assert interface.http_method == "POST"
+    assert interface.route == "/employees/{employee_id}/transfer"
+
+    # Path param is captured
+    fields_by_name = {f.name: f for f in interface.request.fields}
+    assert "employee_id" in fields_by_name
+    assert fields_by_name["employee_id"].location == "path"
+
+    # Body is unresolved (dict without Pydantic shape) but the interface is
+    # still usable via --json-body.
+    assert interface.request.unresolved is True
+    assert any("dict" in note.lower() or "json-body" in note.lower() or "could not" in note.lower()
+               for note in interface.request.notes)
+
+
 # --------------------------------------------------------------------------- #
 # Python — Flask (best-effort key inference)
 # --------------------------------------------------------------------------- #

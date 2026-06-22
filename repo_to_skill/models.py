@@ -165,6 +165,7 @@ class IoField(DumpMixin):
     source_path: str = ""
     source_symbol: str = ""
     confidence: float = 0.0
+    location: str = "body"  # "body" | "path" | "query"
 
 
 @dataclass

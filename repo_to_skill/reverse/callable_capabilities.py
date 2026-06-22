@@ -883,6 +883,72 @@ _FLASK_ROUTE_RE = re.compile(
 _PY_DEF_RE = re.compile(r"(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*([A-Za-z_][\w\[\]., ]*?))?\s*:")
 
 
+def _fastapi_path_param_names(route: str) -> list[str]:
+    """Return the path parameter names declared in a FastAPI route, in order.
+
+    Accepts ``{name}`` and ``{name: converter}`` forms. Path params also include
+    Starlette's angle-bracket form ``<name>`` for safety, but FastAPI's canonical
+    form is ``{name}``.
+    """
+    names: list[str] = []
+    for match in re.finditer(r"\{([A-Za-z_]\w*)(?::[^}]*)?\}", route):
+        names.append(match.group(1))
+    return names
+
+
+def _fastapi_split_params(params: str) -> list[tuple[str, str, str]]:
+    """Split a Python parameter list into (name, annotation, default) tuples.
+
+    Annotations and defaults are stripped of leading/trailing whitespace. Parameters
+    without an annotation yield an empty annotation string; parameters without a
+    default yield an empty default string.
+    """
+    parts: list[tuple[str, str, str]] = []
+    depth = 0
+    current = ""
+    for char in params:
+        if char == "," and depth == 0:
+            parts.append(_fastapi_parse_param(current))
+            current = ""
+            continue
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        current += char
+    if current.strip():
+        parts.append(_fastapi_parse_param(current))
+    return parts
+
+
+def _fastapi_parse_param(text: str) -> tuple[str, str, str]:
+    cleaned = text.strip()
+    if not cleaned or cleaned.startswith("*"):
+        return ("", "", "")
+    # Strip any leading decorators/annotations like @Body(...). Keep this simple:
+    # the part before the first ":" is the name (possibly with leading decorators
+    # which we ignore because they contain no ":" at the top level).
+    if ":" in cleaned:
+        name_part, rest = cleaned.split(":", 1)
+        name = name_part.strip().split("=")[-1].strip()
+        annotation_and_default = rest.strip()
+    else:
+        # No annotation — "name" or "name=default"
+        name, default = (cleaned.split("=", 1) + [""])[:2]
+        return (name.strip(), "", default.strip())
+    if "=" in annotation_and_default:
+        annotation, default = annotation_and_default.split("=", 1)
+        annotation = annotation.strip()
+        default = default.strip()
+    else:
+        annotation = annotation_and_default.strip()
+        default = ""
+    # Name may still carry leading decorator remnants like "Body(...) payload" —
+    # take the last whitespace-separated identifier as the name.
+    name = name.split()[-1] if name else ""
+    return (name, annotation, default)
+
+
 def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[CallableInterface]:
     text = source.text
     if "@" not in text or (".get(" not in text and ".post(" not in text and ".put(" not in text
@@ -897,15 +963,34 @@ def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[C
         if not def_match:
             continue
         action_name, params, return_annotation = def_match.group(1), def_match.group(2), def_match.group(3)
-        request_type = ""
-        for part in params.split(","):
-            annotation = part.split(":", 1)
-            if len(annotation) != 2:
+
+        path_param_names = set(_fastapi_path_param_names(route))
+        path_fields: list[IoField] = []
+        body_type = ""
+        body_is_dict = False
+        for name, annotation, _default in _fastapi_split_params(params):
+            if not name:
                 continue
-            candidate = re.split(r"[=\[]", annotation[1].strip(), maxsplit=1)[0].strip().split(".")[-1]
-            if candidate in index:
-                request_type = candidate
-                break
+            annotation_base = re.split(r"[=\[]", annotation, maxsplit=1)[0].strip().split(".")[-1] if annotation else ""
+            if name in path_param_names:
+                # Path parameter: FastAPI binds it from {name} in the route.
+                path_fields.append(
+                    IoField(
+                        name=name,
+                        type=annotation_base or "string",
+                        required=True,
+                        source_path=source.path,
+                        source_symbol=action_name,
+                        confidence=0.8,
+                        location="path",
+                    )
+                )
+                continue
+            if annotation_base in index:
+                body_type = annotation_base
+            elif annotation_base.lower() in {"dict", "dictionary"} or annotation_base.lower().startswith("dict["):
+                body_is_dict = True
+
         response_type = ""
         response_model = re.search(r"response_model\s*=\s*([A-Za-z_]\w*)", decorator_args)
         if response_model:
@@ -913,11 +998,43 @@ def _detect_fastapi(source: _Source, index: dict[str, list[_TypeDef]]) -> list[C
         elif return_annotation:
             response_type = _unwrap_response_type(return_annotation).split(".")[-1]
         slug = _slugify(f"{Path(source.path).stem}-{action_name}")
-        request_contract = (
-            _resolve_contract(request_type, index)
-            if request_type
-            else _unresolved_contract("no typed request model parameter on FastAPI handler")
+
+        body_contract = (
+            _resolve_contract(body_type, index)
+            if body_type
+            else (
+                IoContract(
+                    model_name="dict",
+                    unresolved=True,
+                    confidence=0.3,
+                    notes=["Handler accepts a raw dict body; pass a JSON object via --json-body."],
+                )
+                if body_is_dict
+                else None
+            )
         )
+        if body_contract is None:
+            # GET handlers typically have no body; POST/PUT/PATCH without a body
+            # param is still callable with an empty payload.
+            body_contract = IoContract(
+                model_name="none",
+                unresolved=True,
+                confidence=0.3,
+                notes=["No typed request body parameter detected; pass --json-body '{}' if a body is required."],
+            )
+
+        # Merge path fields into the contract's field list so callers know they
+        # must supply them. location="path" distinguishes them from body fields.
+        merged_fields = list(path_fields) + list(body_contract.fields)
+        request_contract = IoContract(
+            model_name=body_contract.model_name,
+            media_type=body_contract.media_type,
+            fields=merged_fields,
+            confidence=body_contract.confidence,
+            unresolved=body_contract.unresolved or body_is_dict,
+            notes=list(body_contract.notes),
+        )
+
         response_contract = (
             _resolve_contract(response_type, index)
             if response_type and response_type in index
