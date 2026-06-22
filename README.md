@@ -1,6 +1,22 @@
-# repo-to-skill
+# starry-agent
 
 [English](README.md) | [简体中文](README.zh-CN.md)
+
+**A personal monorepo for agent skills, tools, and products.**
+
+`starry-agent` collects agent-facing artifacts I (the author) build: callable skills, the tools that generate or support them, and standalone agent products. Each artifact lives in its own subdirectory and can be used independently.
+
+| Path | Kind | Description |
+|------|------|-------------|
+| [`skills/repo-to-skill/`](skills/repo-to-skill/) | Skill | The skill that wraps the `repo-to-skill` CLI for agent invocation. |
+| [`repo_to_skill/`](repo_to_skill/) + [`pyproject.toml`](pyproject.toml) | Tool + library | The `repo-to-skill` CLI: turn a local repo and a goal into installable callable skills. |
+| [`docs/`](docs/) | Docs | Bilingual methodology, skill reference, architecture, security. |
+
+Future additions will appear as new top-level subdirectories (for example a standalone agent product under `agents/<name>/`).
+
+---
+
+## repo-to-skill
 
 **Give it a repo and a user goal. It finds the right APIs and turns them into callable agent skills.**
 

@@ -1,6 +1,22 @@
-# repo-to-skill
+# starry-agent
 
 [English](README.md) | [简体中文](README.zh-CN.md)
+
+**个人 agent 产物集合：skill、工具、agent 产品。**
+
+`starry-agent` 汇集作者开发的面向 agent 的产物：可调用 skill、生成或支撑 skill 的工具、独立的 agent 产品。每个产物放在自己的子目录里，可独立使用。
+
+| 路径 | 类型 | 说明 |
+|------|------|------|
+| [`skills/repo-to-skill/`](skills/repo-to-skill/) | Skill | 包装 `repo-to-skill` CLI 的 skill，供 agent 调起。 |
+| [`repo_to_skill/`](repo_to_skill/) + [`pyproject.toml`](pyproject.toml) | 工具 + 库 | `repo-to-skill` CLI：把本地仓库和用户目标变成可安装的可调用 skill。 |
+| [`docs/`](docs/) | 文档 | 中英文工作原理、技能解析、架构、安全。 |
+
+以后新增的产物会作为新的顶层子目录出现（例如 `agents/<name>/` 下的独立 agent 产品）。
+
+---
+
+## repo-to-skill
 
 **给它一个仓库和一个用户目标，它会找到合适的 API，并把它们生成可调用的 agent skill。**
 
