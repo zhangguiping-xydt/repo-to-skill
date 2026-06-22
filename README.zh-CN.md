@@ -176,7 +176,7 @@ repo-to-skill 面向小到大的本地仓库。它已经在一个大型企业仓
 
 ## 更多文档
 
-- [工作原理](docs/methodology.zh-CN.md)
+- [工作原理](docs/how-it-works.zh-CN.md)
 - [技能详细解析](docs/skill-reference.zh-CN.md)
 - [Architecture](docs/architecture.md)（英文）
 - [Security](docs/security.md)（英文）
@@ -185,7 +185,7 @@ repo-to-skill 面向小到大的本地仓库。它已经在一个大型企业仓
 - [Adapters](adapters/README.md)（英文）
 - [Evals](docs/evals.md)（英文）
 
-英文版工作原理与技能解析：[How it works](docs/methodology.md) / [Skill reference](docs/skill-reference.md)。
+英文版工作原理与技能解析：[How it works](docs/how-it-works.md) / [Skill reference](docs/skill-reference.md)。
 
 ## 许可证与署名
 

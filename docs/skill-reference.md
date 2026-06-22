@@ -165,7 +165,7 @@ A TF-IDF-style scorer ranks every detected interface against the goal text:
 1. Tokenize the goal (alphanumeric tokens, stopwords removed).
 2. For each interface, tokenize each metadata field (`slug`, `handler_symbol`, `route`, `business_method`, `request_fields`, `request_model`, `response_fields`, `response_model`, `framework`, `stack`, `side_effects`).
 3. Compute IDF across the entire interface catalog so rare business terms dominate over common tokens.
-4. For each field, sum `(1 + TF) * IDF` for every goal token that matches, then multiply by the field weight (see [How it works](methodology.md#deterministic-scorer)).
+4. For each field, sum `(1 + TF) * IDF` for every goal token that matches, then multiply by the field weight (see [How it works](how-it-works.md#deterministic-scorer)).
 5. Take the top-N (default 12 for bundle, 5 for composite).
 
 The selection is logged with `selection_source: deterministic` and each item carries `score` and `reasons` (the matched fields and tokens).
@@ -239,7 +239,7 @@ The skill is a directory of files. Installation does not run any setup script, r
 
 ## Related documents
 
-- [How it works](methodology.md) — the pipeline design and stage-by-stage reasoning.
+- [How it works](how-it-works.md) — the pipeline design and stage-by-stage reasoning.
 - [Architecture](architecture.md) — internal module layout and artifact flow.
 - [Skill output format](skill-output-format.md) — required files and manifest fields per skill kind.
 - [Security](security.md) — safety boundary details.

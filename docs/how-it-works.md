@@ -1,12 +1,12 @@
 # How it works
 
-repo-to-skill turns a local source repository and a user goal into an installable callable agent skill — without API docs, OpenAPI specs, or runtime capture. This document explains the methodology behind that pipeline: why each stage exists, what it produces, and where the boundary between deterministic tooling and agent judgment sits.
+repo-to-skill turns a local source repository and a user goal into an installable callable agent skill — without API docs, OpenAPI specs, or runtime capture. This document explains how the pipeline works: why each stage exists, what it produces, and where the boundary between deterministic tooling and agent judgment sits.
 
 ## Core premise
 
 Most legacy and internal systems already contain valuable behavior: HR workflows, finance approvals, scheduling engines, reporting endpoints. That behavior is locked behind HTTP interfaces that coding agents cannot safely reuse on their own — reading the source code is not the same as calling the live system.
 
-repo-to-skill bridges that gap by treating the source repository as the source of truth and producing a separate, reviewable skill package that another agent can call. The methodology follows four commitments:
+repo-to-skill bridges that gap by treating the source repository as the source of truth and producing a separate, reviewable skill package that another agent can call. The design follows four commitments:
 
 1. **Source, not docs.** Static analysis of source code detects callable interfaces. No API documentation or OpenAPI spec is required. This makes the tool usable on exactly the systems that lack docs: older internal and enterprise services.
 2. **Goal-oriented selection.** The user gives a natural-language goal. The tool scores and selects the interfaces most likely to serve that goal, instead of asking the user to hand-pick API names.
@@ -55,7 +55,7 @@ This stage is **deterministic**. It does not call out to an LLM, does not requir
 
 ## Stage 2 — select
 
-Selection takes a user goal and decides which of the detected interfaces belong in the generated skill. The methodology here separates two layers:
+Selection takes a user goal and decides which of the detected interfaces belong in the generated skill. This stage separates two layers:
 
 ### Deterministic scorer
 
@@ -79,7 +79,7 @@ IDF is computed across the detected interface catalog, so a token that appears i
 
 When the generating agent can confidently name the right slugs, it passes `--selected-slugs` (or `--selection-json`) to override the scorer. The skill output records `selection_source: agentic` in that case, with each item scored `1.0` and reason `"selected by agent slug"`.
 
-The methodology is intentionally **fail-loud** on unknown slugs: if the agent names a slug that does not appear in `callable_capabilities.json`, the tool raises `unknown callable interface slug: <slug>` rather than silently dropping it. This prevents the agent from inventing APIs that do not exist in the source.
+Selection is intentionally **fail-loud** on unknown slugs: if the agent names a slug that does not appear in `callable_capabilities.json`, the tool raises `unknown callable interface slug: <slug>` rather than silently dropping it. This prevents the agent from inventing APIs that do not exist in the source.
 
 ### Two selection modes
 
@@ -112,7 +112,7 @@ Validation is a structural safety gate, not a style check. It enforces:
 - Banned tokens in every caller (`subprocess`, bare `open()`, writable open modes). Only `urllib.request` / `urllib.error` are permitted for network access.
 - No machine paths leak into the generated skill (`/home/`, `/tmp/`, `/media/`, absolute paths, internal URLs, credentials).
 
-A validation failure blocks downstream install. The methodology treats validation as a **contract**: if the validator passes, the skill is structurally safe to install and inspect.
+A validation failure blocks downstream install. Validation is treated as a **contract**: if the validator passes, the skill is structurally safe to install and inspect.
 
 ## Stage 5 — install
 

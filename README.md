@@ -10,7 +10,7 @@
 |------|------|-------------|
 | [`skills/repo-to-skill/`](skills/repo-to-skill/) | Skill | The skill that wraps the `repo-to-skill` CLI for agent invocation. |
 | [`repo_to_skill/`](repo_to_skill/) + [`pyproject.toml`](pyproject.toml) | Tool + library | The `repo-to-skill` CLI: turn a local repo and a goal into installable callable skills. |
-| [`docs/`](docs/) | Docs | Bilingual methodology, skill reference, architecture, security. |
+| [`docs/`](docs/) | Docs | Bilingual how-it-works, skill reference, architecture, security. |
 
 Future additions will appear as new top-level subdirectories (for example a standalone agent product under `agents/<name>/`).
 
@@ -176,7 +176,7 @@ The generated package is intentionally vendor-neutral. Different coding-agent to
 
 ## More documentation
 
-- [How it works](docs/methodology.md)
+- [How it works](docs/how-it-works.md)
 - [Skill reference](docs/skill-reference.md)
 - [Architecture](docs/architecture.md)
 - [Security](docs/security.md)
@@ -185,9 +185,9 @@ The generated package is intentionally vendor-neutral. Different coding-agent to
 - [Adapters](adapters/README.md)
 - [Evals](docs/evals.md)
 
-Simplified Chinese versions of methodology and skill reference are also available:
+Simplified Chinese versions of how-it-works and skill reference are also available:
 
-- [工作原理](docs/methodology.zh-CN.md)
+- [工作原理](docs/how-it-works.zh-CN.md)
 - [技能详细解析](docs/skill-reference.zh-CN.md)
 
 ## License and attribution
