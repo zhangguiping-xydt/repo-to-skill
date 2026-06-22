@@ -21,6 +21,16 @@ class CallableBundleSelection:
 
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
+_CJK_QUERY_ALIASES = {
+    "加班": ("work", "workload", "overtime"),
+    "时长": ("time", "length", "hour", "hours"),
+    "工时": ("work", "time", "hour", "hours"),
+    "调休": ("leave", "day", "days", "compensatory"),
+    "休假": ("leave", "day", "days"),
+    "天数": ("day", "days"),
+    "员工": ("employee", "staff", "person"),
+    "人员": ("employee", "staff", "person"),
+}
 _STOPWORDS = {
     "a",
     "an",
@@ -66,6 +76,14 @@ def _tokens(value: str) -> list[str]:
         for token in _TOKEN_RE.findall(_split_identifier(value))
         if token.lower() not in _STOPWORDS
     ]
+
+
+def _query_tokens(value: str) -> list[str]:
+    tokens = _tokens(value)
+    for phrase, aliases in _CJK_QUERY_ALIASES.items():
+        if phrase in value:
+            tokens.extend(aliases)
+    return tokens
 
 
 def _field_tokens(interface: dict[str, Any]) -> dict[str, list[str]]:
@@ -186,7 +204,7 @@ def select_callable_interfaces(
     if not need_summary:
         raise ValueError("need must be provided when selected_slugs is empty")
 
-    query_tokens = _dedupe(_tokens(need_summary))
+    query_tokens = _dedupe(_query_tokens(need_summary))
     if not query_tokens:
         raise ValueError("need must include searchable words")
 

@@ -1,10 +1,10 @@
 ---
 name: {{ bundle_slug }}
-description: {{ skill_description | tojson }}
+description: {{ yaml_quote(skill_description) }}
 kind: callable-bundle
 ---
 
-{%- if language == 'zh-CN' %}
+{% if language == 'zh-CN' %}
 # {{ project_name }} · callable API bundle
 
 本 skill 把一个用户目标转化为来自 {{ project_name }} 系统的一组聚焦的 callable API 工具。

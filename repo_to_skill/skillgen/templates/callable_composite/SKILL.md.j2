@@ -1,10 +1,10 @@
 ---
 name: {{ composite_slug }}
-description: {{ skill_description | tojson }}
+description: {{ yaml_quote(skill_description) }}
 kind: callable-composite
 ---
 
-{%- if language == 'zh-CN' %}
+{% if language == 'zh-CN' %}
 # {{ project_name }} · callable composite（{{ steps_count }} 步）
 
 本 skill 按固定顺序调用 {{ project_name }} 系统的 {{ steps_count }} 个真实 HTTP API，用于回答一个业务目标：

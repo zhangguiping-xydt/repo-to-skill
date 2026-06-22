@@ -358,6 +358,7 @@ def render_skill(plan: SkillPlan, output: Path) -> Path:
         "key_paths": _key_paths(plan.profile),
         "generated_by": "repo-to-skill",
         "language": plan.language,
+        "yaml_quote": _yaml_double_quoted,
     }
 
     outputs = {
@@ -409,6 +410,11 @@ def _python_identifier(value: str) -> str:
 def _py_literal(value: str) -> str:
     """Sanitize a value for embedding inside a double-quoted Python/JSON string."""
     return _inline_text(value).replace("\\", "").replace('"', "'")
+
+
+def _yaml_double_quoted(value: str) -> str:
+    escaped = _inline_text(value).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
 
 
 def _schema_type(raw_type: str) -> tuple[str, bool]:
@@ -508,8 +514,15 @@ def _goal_intent(need_summary: str) -> str:
     return f"you need to {goal[0].lower()}{goal[1:]}"
 
 
-def _bundle_skill_description(project_name: str, need_summary: str, interfaces_count: int) -> str:
+def _bundle_skill_description(
+    project_name: str, need_summary: str, interfaces_count: int, language: str = "en"
+) -> str:
     """Trigger-shaped SKILL.md description: tells an agent WHEN to use the bundle."""
+    if language == "zh-CN":
+        return _inline_text(
+            f"当你需要通过 {project_name} 系统的实时 HTTP API（{interfaces_count} 个 callable 工具）"
+            f"完成“{need_summary}”，而不是重新实现逻辑时使用。"
+        )
     tools_word = "tool" if interfaces_count == 1 else "tools"
     return _inline_text(
         f"Use when {_goal_intent(need_summary)} using the {project_name} system's live "
@@ -622,6 +635,7 @@ def render_callable_skills(plan: CallableSkillPlan, output: Path) -> list[Path]:
         module = _python_identifier(slug)
         context = _callable_context(interface, project_name, slug, module)
         context["language"] = plan.language
+        context["yaml_quote"] = _yaml_double_quoted
 
         skill_root = output_root / slug
         (skill_root / "scripts").mkdir(parents=True, exist_ok=True)
@@ -667,12 +681,13 @@ def _bundle_context(plan: CallableBundlePlan) -> dict[str, Any]:
         "project_name": project_name,
         "bundle_slug": bundle_slug,
         "need_summary": need_summary,
-        "skill_description": _bundle_skill_description(project_name, need_summary, interfaces_count),
+        "skill_description": _bundle_skill_description(project_name, need_summary, interfaces_count, plan.language),
         "selection_source": _inline_text(plan.selection.selection_source, "deterministic"),
         "interfaces": interfaces,
         "interfaces_count": interfaces_count,
         "generated_by": "repo-to-skill",
         "language": plan.language,
+        "yaml_quote": _yaml_double_quoted,
     }
 
 
@@ -752,6 +767,7 @@ def _composite_context(plan: CallableCompositePlan) -> dict[str, Any]:
         "selection_source": _inline_text(plan.selection.selection_source, "deterministic"),
         "generated_by": "repo-to-skill",
         "language": plan.language,
+        "yaml_quote": _yaml_double_quoted,
     }
 
 

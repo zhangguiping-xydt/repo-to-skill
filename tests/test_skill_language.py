@@ -196,6 +196,10 @@ def test_render_callable_bundle_in_zh_CN_produces_chinese(tmp_path: Path) -> Non
     bundle = render_callable_bundle(plan, tmp_path / "skill")
     skill_md = (bundle / "SKILL.md").read_text(encoding="utf-8")
     assert "callable API bundle" in skill_md or "何时使用" in skill_md
+    assert "---\n\n# demo" in skill_md
+    assert "需要通过 demo 系统" in skill_md
+    assert "\\u9700\\u8981" not in skill_md
+    assert "using the demo system" not in skill_md
     assert "何时使用" in skill_md
     assert "## 安全" in skill_md
 

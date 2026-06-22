@@ -130,6 +130,36 @@ def test_select_callable_interfaces_ignores_common_stopwords() -> None:
     assert all("matched: and" not in reason for item in selection.items for reason in item.reasons)
 
 
+def test_select_callable_interfaces_supports_chinese_business_need() -> None:
+    interfaces = [
+        _interface(
+            "calculate-work-load",
+            route="/api/work/calculate",
+            handler="WorkController.calculateWorkload",
+            business="KQWorkDateBL.CalculateTimeLength",
+            request_fields=["employeeInfo", "applyStartDateTime", "applyEndDateTime"],
+            response_fields=["timeLengthUnitDay", "timeLengthUnitHour"],
+        ),
+        _interface(
+            "query-dictionary",
+            route="/api/dictionary/list",
+            handler="DictionaryController.list",
+            request_fields=["dicId", "langId"],
+            response_fields=["items"],
+        ),
+    ]
+
+    selection = select_callable_interfaces(
+        interfaces,
+        "根据加班时长查询调休天数",
+        max_interfaces=1,
+    )
+
+    assert [item.interface["slug"] for item in selection.items] == ["calculate-work-load"]
+    assert selection.items[0].score > 0
+    assert any("matched" in reason for reason in selection.items[0].reasons)
+
+
 def test_select_callable_interfaces_requires_need_without_agent_slugs() -> None:
     with pytest.raises(ValueError, match="need must be provided"):
         select_callable_interfaces(

@@ -1,10 +1,10 @@
 ---
 name: {{ slug }}
-description: {{ skill_description | tojson }}
+description: {{ yaml_quote(skill_description) }}
 kind: callable-capability
 ---
 
-{%- if language == 'zh-CN' %}
+{% if language == 'zh-CN' %}
 # {{ project_name }} · {{ handler_symbol }}
 
 本 skill 暴露 {{ project_name }} 系统中已存在的一项能力。该能力位于某个 HTTP 接口背后；本 pack 把它变成 AI 编程代理可以直接调用的形态，而不是重新实现一遍。
