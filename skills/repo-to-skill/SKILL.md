@@ -86,6 +86,29 @@ A callable bundle is one skill directory containing:
 - `references/capability-source.md` mapping tools back to source routes, handlers,
   business methods, and contract fields
 
+## Output language
+
+repo-to-skill decides the prose language (headings, labels, explanations in
+`SKILL.md` and `references/*.md`) from the `--language` option:
+
+- `--language auto` (default): detect from the goal/need text. If CJK characters
+  make up at least 30% of non-whitespace characters, the output is `zh-CN`;
+  otherwise it is `en`.
+- `--language zh-CN` or `--language en`: override detection explicitly.
+
+Source-derived identifiers (slugs, routes, handler symbols, business method
+names, field names, `# TODO` markers) are never translated — they must stay
+faithful to the wire contract.
+
+```bash
+repo-to-skill generate <repo> \
+  --analysis <workdir>/analysis \
+  --output <workdir>/skill \
+  --mode callable-bundle \
+  --need "<user goal in any language>" \
+  --language auto
+```
+
 ## Safety rules
 
 - Do not modify the target repository.

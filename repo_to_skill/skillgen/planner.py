@@ -12,6 +12,7 @@ from repo_to_skill.skillgen.callable_selector import (
     CallableBundleSelection,
     select_callable_interfaces,
 )
+from repo_to_skill.skillgen.language import resolve_language
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class SkillPlan:
     skill_spec: dict[str, Any]
     verification_report: dict[str, Any]
     confidence_report: str
+    language: str = "en"
 
     @property
     def project_name(self) -> str:
@@ -62,6 +64,7 @@ class CallableSkillPlan:
     scan: dict[str, Any]
     profile: dict[str, Any]
     callable_capabilities: dict[str, Any]
+    language: str = "en"
 
     @property
     def project_name(self) -> str:
@@ -89,6 +92,7 @@ class CallableBundlePlan:
     profile: dict[str, Any]
     callable_capabilities: dict[str, Any]
     selection: CallableBundleSelection
+    language: str = "en"
 
     @property
     def project_name(self) -> str:
@@ -115,6 +119,7 @@ class CallableCompositePlan:
     goal: str
     selection: CallableBundleSelection
     steps: list[CompositeStep]
+    language: str = "en"
 
     @property
     def project_name(self) -> str:
@@ -165,7 +170,7 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
-def plan_skill(target: Path, analysis: Path) -> SkillPlan:
+def plan_skill(target: Path, analysis: Path, *, language: str = "en") -> SkillPlan:
     """Build a render plan from existing analyze artifacts without rescanning target."""
     target_root = target.expanduser().resolve()
     if not target_root.exists() or not target_root.is_dir():
@@ -183,6 +188,8 @@ def plan_skill(target: Path, analysis: Path) -> SkillPlan:
         raise ValueError("missing analysis artifact: confidence-report.md")
     confidence_report = confidence_path.read_text(encoding="utf-8")
 
+    resolved_language = resolve_language(language, "")
+
     return SkillPlan(
         target=target_root,
         analysis_root=root,
@@ -193,10 +200,13 @@ def plan_skill(target: Path, analysis: Path) -> SkillPlan:
         skill_spec=skill_spec,
         verification_report=verification_report,
         confidence_report=confidence_report,
+        language=resolved_language,
     )
 
 
-def plan_callable_skills(target: Path, analysis: Path) -> CallableSkillPlan:
+def plan_callable_skills(
+    target: Path, analysis: Path, *, language: str = "en"
+) -> CallableSkillPlan:
     """Build a callable-skill render plan from existing analyze artifacts."""
     target_root = target.expanduser().resolve()
     if not target_root.exists() or not target_root.is_dir():
@@ -207,12 +217,15 @@ def plan_callable_skills(target: Path, analysis: Path) -> CallableSkillPlan:
     profile = _read_json(root / "profile.json")
     callable_capabilities = _read_json(root / "callable_capabilities.json")
 
+    resolved_language = resolve_language(language, "")
+
     return CallableSkillPlan(
         target=target_root,
         analysis_root=root,
         scan=scan,
         profile=profile,
         callable_capabilities=callable_capabilities,
+        language=resolved_language,
     )
 
 
@@ -234,6 +247,7 @@ def plan_callable_bundle(
     selected_slugs: list[str] | None,
     selection_json: Path | None,
     max_interfaces: int,
+    language: str = "auto",
 ) -> CallableBundlePlan:
     """Build a render plan for one goal-oriented callable-bundle skill."""
     base = plan_callable_skills(target, analysis)
@@ -259,6 +273,8 @@ def plan_callable_bundle(
     if not selection.items:
         raise ValueError("no callable interfaces matched the requested need")
 
+    resolved_language = resolve_language(language, need_summary)
+
     return CallableBundlePlan(
         target=base.target,
         analysis_root=base.analysis_root,
@@ -266,6 +282,7 @@ def plan_callable_bundle(
         profile=base.profile,
         callable_capabilities=base.callable_capabilities,
         selection=selection,
+        language=resolved_language,
     )
 
 
@@ -277,6 +294,7 @@ def plan_callable_composite(
     selected_slugs: list[str] | None,
     selection_json: Path | None,
     max_interfaces: int,
+    language: str = "auto",
 ) -> CallableCompositePlan:
     """Build a render plan for a composite (A->B->...) callable skill.
 
@@ -326,6 +344,8 @@ def plan_callable_composite(
         for index, item in enumerate(selection.items)
     ]
 
+    resolved_language = resolve_language(language, goal_summary)
+
     return CallableCompositePlan(
         target=base.target,
         analysis_root=base.analysis_root,
@@ -335,4 +355,5 @@ def plan_callable_composite(
         goal=goal_summary,
         selection=selection,
         steps=steps,
+        language=resolved_language,
     )

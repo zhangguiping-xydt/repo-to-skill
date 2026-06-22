@@ -1,3 +1,24 @@
+{%- if language == 'zh-CN' -%}
+# 能力选择
+
+本 bundle 针对以下用户目标生成：
+
+> {{ need_summary }}
+
+选择来源：`{{ selection_source }}`
+
+## 选中的接口
+
+| 接口 | 方法 / route | 处理符号 | 得分 | 理由 |
+|-----------|----------------|---------|-------|---------|
+{% for interface in interfaces %}
+| `{{ interface.slug }}` | `{{ interface.http_method }} {{ interface.route }}` | `{{ interface.handler_symbol }}` | {{ interface.selection_score }} | {{ interface.selection_reasons | join("；") }} |
+{% endfor %}
+
+## 如何审阅本选择
+
+这些接口都不是虚构的。每一个都来自 `callable_capabilities.json`，该文件由仓库的静态分析生成。如果 agent 提供了显式 slug 列表，repo-to-skill 会在渲染本 bundle 之前核对每个 slug 是否存在。
+{%- else -%}
 # Capability selection
 
 This bundle was generated for the following user goal:
@@ -20,3 +41,4 @@ The selected interfaces are not invented. Each one comes from
 `callable_capabilities.json`, which is generated from static analysis of the
 repository. If an agent supplied explicit slugs, repo-to-skill verified that each
 slug exists before rendering this bundle.
+{%- endif -%}

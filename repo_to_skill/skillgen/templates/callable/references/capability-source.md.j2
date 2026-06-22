@@ -1,3 +1,57 @@
+{%- if language == 'zh-CN' -%}
+# 能力来源
+
+本 skill 封装了被分析仓库中已存在的能力。下面每个字段都能映射回检测到的源码，维护者可以据此确认封装忠实，没有任何虚构。
+
+## HTTP 入口
+
+- 技术栈：{{ stack }}
+- 框架：{{ framework }}
+- 方法：{{ http_method }}
+- Route：`{{ route }}`
+- 处理符号：`{{ handler_symbol }}`
+{% if handler_path %}
+- 源文件：`{{ handler_path }}`
+{% endif %}
+{% if business_method %}
+- 业务方法：`{{ business_method }}`
+{% endif %}
+
+## 输入模型 —— `{{ request_model }}`
+
+{% if request_fields %}
+| 字段 | JSON 类型 | 是否必填 |
+|-------|-----------|----------|
+{% for field in request_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} | {{ "是" if field.required else "否" }} |
+{% endfor %}
+{% else %}
+无法从扫描到的源码解析请求负载。
+{% for note in request_notes %}
+- {{ note }}
+{% endfor %}
+在契约确认之前，使用 `--json-body` 传入原始 JSON body。
+{% endif %}
+
+## 输出模型 —— `{{ response_model }}`
+
+{% if response_fields %}
+| 字段 | JSON 类型 |
+|-------|-----------|
+{% for field in response_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} |
+{% endfor %}
+{% else %}
+无法从扫描到的源码解析响应负载。
+{% for note in response_notes %}
+- {{ note }}
+{% endfor %}
+{% endif %}
+
+## 关于忠实性的说明
+
+本 skill 保留源码中原本的字段名，使 caller 收发的 JSON 与接口一致。为了可读性去重命名字段会破坏 wire 契约。
+{%- else -%}
 # Capability source
 
 This skill wraps a capability that already exists in the analyzed repository.
@@ -54,3 +108,4 @@ The response payload could not be resolved from the scanned sources.
 The skill keeps the original field names exactly as they appear in source so the
 JSON the caller sends and receives matches the interface. Renaming fields for
 readability would break the wire contract.
+{%- endif -%}

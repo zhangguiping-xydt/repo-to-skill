@@ -1,3 +1,64 @@
+{%- if language == 'zh-CN' -%}
+# 编排计划
+
+本 composite skill 按固定顺序链式调用 {{ steps_count }} 个 callable HTTP 接口，以回答以下目标：
+
+> {{ goal }}
+
+选择来源：`{{ selection_source }}`
+
+## 为什么这很重要
+
+`repo-to-skill` 是基于静态接口元数据渲染出本 orchestrator 的。它**没有**追踪源码中的数据流。每一步响应字段与下一步请求字段之间的映射作为 TODO 留给生成阶段的 agent 解决。
+
+## 顺序步骤
+
+| 顺序 | Slug | 方法 / route | 处理符号 | Endpoint 环境变量 |
+|-------|------|----------------|---------|--------------|
+{% for step in steps %}
+| {{ step.order }} | `{{ step.slug }}` | `{{ step.http_method }} {{ step.route }}` | `{{ step.handler_symbol }}` | `{{ step.endpoint_env }}` |
+{% endfor %}
+
+## 必填字段映射
+
+对每个 step N > 0，决定 step N-1 的哪些响应字段必须传入 step N 的请求，然后编辑 `orchestrator.py`，把 `# TODO: fill from step_<n>.<field>` 标记替换成具体代码。
+
+{% for step in steps %}
+### step_{{ step.order }} —— `{{ step.slug }}`
+
+请求字段（本步的输入）：
+
+{% if step.request_fields %}
+| 字段 | JSON 类型 | 是否必填 | 来源 |
+|-------|-----------|----------|--------|
+{% for field in step.request_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} | {{ "是" if field.required else "否" }} | {{ "TODO：来自 step_" ~ (step.order - 1) if step.order > 0 else "orchestrator CLI 参数" }} |
+{% endfor %}
+{% else %}
+无法从源码解析请求负载。在契约确认之后，通过 `--json-body` 传入原始 JSON body。
+{% endif %}
+
+响应字段（本步的输出，可被 step_{{ step.order + 1 }} 使用）：
+
+{% if step.response_fields %}
+| 字段 | JSON 类型 |
+|-------|-----------|
+{% for field in step.response_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} |
+{% endfor %}
+{% else %}
+无法从源码解析响应负载。
+{% endif %}
+
+{% endfor %}
+
+## 如何解决 TODO
+
+1. 阅读 `references/capability-source.md`，了解每个接口的业务方法和源码路径。
+2. 对每个 step N > 0，根据语义挑选 step N-1 的响应字段，匹配 step N 的必填请求字段。
+3. 打开 `orchestrator.py`，找到每个 `# TODO: fill from step_<n>.<field>` 占位，替换成读取 step N-1 解析 JSON 并把值传给 step N caller CLI 的代码。
+4. 重新运行 `python orchestrator.py --help` 和 dry-run 预览，确认整条链路仍能端到端跑通。
+{%- else -%}
 # Composition plan
 
 This composite skill chains {{ steps_count }} callable HTTP interfaces in a
@@ -69,3 +130,4 @@ The response payload could not be resolved from source.
    and passes the value to step N's caller CLI.
 4. Re-run `python orchestrator.py --help` and a dry-run preview to confirm the
    chain still works end-to-end.
+{%- endif -%}

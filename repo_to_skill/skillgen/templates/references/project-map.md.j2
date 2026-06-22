@@ -1,3 +1,145 @@
+{%- if language == 'zh-CN' -%}
+# 项目图：{{ project_name }}
+
+描述：{{ description }}
+
+主要语言：{{ profile.primary_language | default("Unknown") }}
+
+## 语言
+
+{% if project_map.languages %}{% for item in project_map.languages %}
+- {{ item }}
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 生态
+
+{% if project_map.ecosystems %}{% for item in project_map.ecosystems %}
+- {{ item }}
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 包管理器
+
+{% if project_map.package_managers %}{% for item in project_map.package_managers %}
+- {{ item }}
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 顶层模块
+
+{% if project_map.modules %}{% for module in project_map.modules %}
+- {{ module.name }} —— {{ module.total }} 个文件（源码 {{ module.source }}、配置 {{ module.configuration }}、文档 {{ module.documentation }}、测试 {{ module.test }}）
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 模块信息
+
+{% if project_map.modules %}{% for module in project_map.modules %}
+- {{ module.name }} —— {{ module.summary if module.summary else module.total ~ " 个文件，按顶层布局推断。" }}
+{% if module.languages %}  - 语言：{{ module.languages | join("、") }}
+{% endif %}{% if module.signals %}  - 信号：{{ module.signals | join("、") }}
+{% endif %}  - 计数：源码 {{ module.source }}、配置 {{ module.configuration }}、文档 {{ module.documentation }}、测试 {{ module.test }}
+{% if module.representative_paths %}  - 代表性路径：
+{% for path in module.representative_paths %}    - {{ path }}
+{% endfor %}{% endif %}{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 模块关系
+
+{% if project_map.module_relationships %}{% for relationship in project_map.module_relationships %}
+- {{ relationship.source }} -> {{ relationship.target }} —— {{ relationship.relation }}
+{% if relationship.reason %}  - 原因：{{ relationship.reason }}
+{% endif %}{% if relationship.evidence %}  - 证据：
+{% for path in relationship.evidence %}    - {{ path }}
+{% endfor %}{% endif %}{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 任务入口指引
+
+{% if project_map.task_entry_guide %}{% for guide in project_map.task_entry_guide %}
+- {{ guide.task }}
+{% if guide.start_with %}  - 起步：{{ guide.start_with | join("、") }}
+{% endif %}{% if guide.then_check %}  - 随后检查：{{ guide.then_check | join("、") }}
+{% endif %}{% if guide.rationale %}  - 理由：{{ guide.rationale }}
+{% endif %}{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 校验指引
+
+{% if project_map.validation_guide %}{% for guide in project_map.validation_guide %}
+- {{ guide.scope }}
+{% if guide.commands %}  - 命令：{{ guide.commands | join("；") }}
+{% endif %}{% if guide.paths %}  - 路径：
+{% for path in guide.paths %}    - {{ path }}
+{% endfor %}{% endif %}{% if guide.notes %}  - 备注：{{ guide.notes | join("；") }}
+{% endif %}{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 入口
+
+{% if project_map.entrypoints %}{% for item in project_map.entrypoints %}
+- {{ item }}
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 配置文件
+
+{% if project_map.configuration_files.paths %}{% for item in project_map.configuration_files.paths %}
+- {{ item }}
+{% endfor %}{% if project_map.configuration_files.omitted %}
+- ……另有 {{ project_map.configuration_files.omitted }} 项已省略
+{% endif %}{% else %}
+- 未检测到
+{% endif %}
+
+## 文档文件
+
+{% if project_map.documentation_files.paths %}{% for item in project_map.documentation_files.paths %}
+- {{ item }}
+{% endfor %}{% if project_map.documentation_files.omitted %}
+- ……另有 {{ project_map.documentation_files.omitted }} 项已省略
+{% endif %}{% else %}
+- 未检测到
+{% endif %}
+
+## 源码文件
+
+{% if project_map.source_files.paths %}{% for item in project_map.source_files.paths %}
+- {{ item }}
+{% endfor %}{% if project_map.source_files.omitted %}
+- ……另有 {{ project_map.source_files.omitted }} 项已省略
+{% endif %}{% else %}
+- 未检测到
+{% endif %}
+
+## 测试文件
+
+{% if project_map.test_files.paths %}{% for item in project_map.test_files.paths %}
+- {{ item }}
+{% endfor %}{% if project_map.test_files.omitted %}
+- ……另有 {{ project_map.test_files.omitted }} 项已省略
+{% endif %}{% else %}
+- 未检测到
+{% endif %}
+
+## 分析给出的命令
+
+{% set commands = project_map.test_commands + project_map.run_commands %}{% if commands %}{% for item in commands %}
+- {{ item }}
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+{%- else -%}
 # Project map: {{ project_name }}
 
 Description: {{ description }}
@@ -138,3 +280,4 @@ Primary language: {{ profile.primary_language | default("Unknown") }}
 {% endfor %}{% else %}
 - none detected
 {% endif %}
+{%- endif -%}

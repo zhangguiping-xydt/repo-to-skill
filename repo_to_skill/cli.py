@@ -109,9 +109,11 @@ def _install_and_report(skill_root: Path) -> None:
         console.print(f"Installed skill: {destination}", soft_wrap=True)
 
 
-def _generate_skill(target: Path, analysis: Path, output: Path, *, install: bool = False) -> SkillValidationReport:
+def _generate_skill(
+    target: Path, analysis: Path, output: Path, *, install: bool = False, language: str = "auto"
+) -> SkillValidationReport:
     target_root, output_root = resolve_target_and_output(target, output)
-    plan = plan_skill(target_root, analysis)
+    plan = plan_skill(target_root, analysis, language=language)
     skill_root = render_skill(plan, output_root)
     report = validate_skill(skill_root)
     console.print(f"Generated skill: {skill_root}", soft_wrap=True)
@@ -121,9 +123,11 @@ def _generate_skill(target: Path, analysis: Path, output: Path, *, install: bool
     return report
 
 
-def _generate_callable_skills(target: Path, analysis: Path, output: Path, *, install: bool = False) -> bool:
+def _generate_callable_skills(
+    target: Path, analysis: Path, output: Path, *, install: bool = False, language: str = "auto"
+) -> bool:
     target_root, output_root = resolve_target_and_output(target, output)
-    plan = plan_callable_skills(target_root, analysis)
+    plan = plan_callable_skills(target_root, analysis, language=language)
     if not plan.interfaces:
         console.print(_no_interface_guidance(plan.profile.get("languages") or []))
         return True
@@ -155,9 +159,10 @@ def _generate_callable_bundle(
     selected_slugs: str | None,
     selection_json: Path | None,
     install: bool = False,
+    language: str = "auto",
 ) -> bool:
     target_root, output_root = resolve_target_and_output(target, output)
-    base = plan_callable_skills(target_root, analysis)
+    base = plan_callable_skills(target_root, analysis, language=language)
     if not base.interfaces:
         console.print(_no_interface_guidance(base.profile.get("languages") or []))
         return True
@@ -168,6 +173,7 @@ def _generate_callable_bundle(
         selected_slugs=_parse_slugs(selected_slugs),
         selection_json=selection_json,
         max_interfaces=max_interfaces,
+        language=language,
     )
     bundle = render_callable_bundle(plan, output_root)
     report = validate_skill(bundle)
@@ -188,9 +194,10 @@ def _generate_callable_composite(
     selected_slugs: str | None,
     selection_json: Path | None,
     install: bool = False,
+    language: str = "auto",
 ) -> bool:
     target_root, output_root = resolve_target_and_output(target, output)
-    base = plan_callable_skills(target_root, analysis)
+    base = plan_callable_skills(target_root, analysis, language=language)
     if not base.interfaces:
         console.print(_no_interface_guidance(base.profile.get("languages") or []))
         return True
@@ -201,6 +208,7 @@ def _generate_callable_composite(
         selected_slugs=_parse_slugs(selected_slugs),
         selection_json=selection_json,
         max_interfaces=max_interfaces,
+        language=language,
     )
     composite = render_callable_composite(plan, output_root)
     report = validate_skill(composite)
@@ -260,6 +268,11 @@ def generate(
         "--install",
         help="After a PASS, copy the skill into ~/.claude/skills and ~/.agents/skills for immediate agent use.",
     ),
+    language: str = typer.Option(
+        "auto",
+        "--language",
+        help="Output language for generated skill prose: 'auto' (detect from goal/need), 'en', or 'zh-CN'.",
+    ),
 ) -> None:
     """Generate a reviewable local AI coding agent skill pack from existing analysis artifacts."""
     if mode not in {"repo-map", "callable", "callable-bundle", "callable-composite"}:
@@ -269,7 +282,7 @@ def generate(
         raise typer.Exit(code=1)
     try:
         if mode == "callable":
-            all_pass = _generate_callable_skills(target, analysis, output, install=install)
+            all_pass = _generate_callable_skills(target, analysis, output, install=install, language=language)
         elif mode == "callable-bundle":
             all_pass = _generate_callable_bundle(
                 target,
@@ -280,6 +293,7 @@ def generate(
                 selected_slugs=selected_slugs,
                 selection_json=selection_json,
                 install=install,
+                language=language,
             )
         elif mode == "callable-composite":
             if not goal.strip():
@@ -294,9 +308,10 @@ def generate(
                 selected_slugs=selected_slugs,
                 selection_json=selection_json,
                 install=install,
+                language=language,
             )
         else:
-            all_pass = _generate_skill(target, analysis, output, install=install).status == "PASS"
+            all_pass = _generate_skill(target, analysis, output, install=install, language=language).status == "PASS"
     except ValueError as exc:
         console.print(str(exc))
         raise typer.Exit(code=1) from exc
@@ -320,6 +335,11 @@ def compose(
     target: Path = typer.Argument(..., help="Local repository to analyze and turn into a skill."),
     output: Path = typer.Option(..., "--output", "-o", help="Skill output directory."),
     workdir: Path = typer.Option(..., "--workdir", help="Analysis work directory."),
+    language: str = typer.Option(
+        "auto",
+        "--language",
+        help="Output language for generated skill prose: 'auto' (detect from goal/need), 'en', or 'zh-CN'.",
+    ),
 ) -> None:
     """Run local analyze -> generate -> validate without runtime registration or network use."""
     try:
@@ -327,7 +347,7 @@ def compose(
         console.print(f"Analysis complete: {analysis_root}")
         if status != "PASS":
             raise typer.Exit(code=1)
-        report = _generate_skill(target, analysis_root, output)
+        report = _generate_skill(target, analysis_root, output, language=language)
     except ValueError as exc:
         console.print(str(exc))
         raise typer.Exit(code=1) from exc

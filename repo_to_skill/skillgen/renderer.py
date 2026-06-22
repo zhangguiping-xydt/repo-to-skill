@@ -357,6 +357,7 @@ def render_skill(plan: SkillPlan, output: Path) -> Path:
         "project_map": _project_map(plan.profile),
         "key_paths": _key_paths(plan.profile),
         "generated_by": "repo-to-skill",
+        "language": plan.language,
     }
 
     outputs = {
@@ -620,6 +621,7 @@ def render_callable_skills(plan: CallableSkillPlan, output: Path) -> list[Path]:
             slug = f"{slug}-{count + 1}"
         module = _python_identifier(slug)
         context = _callable_context(interface, project_name, slug, module)
+        context["language"] = plan.language
 
         skill_root = output_root / slug
         (skill_root / "scripts").mkdir(parents=True, exist_ok=True)
@@ -656,6 +658,7 @@ def _bundle_context(plan: CallableBundlePlan) -> dict[str, Any]:
         context = _callable_context(item.interface, project_name, slug, module)
         context["selection_score"] = item.score
         context["selection_reasons"] = [_inline_text(reason) for reason in item.reasons]
+        context["language"] = plan.language
         interfaces.append(context)
 
     need_summary = _inline_text(plan.selection.need_summary, "Selected callable interfaces.")
@@ -669,6 +672,7 @@ def _bundle_context(plan: CallableBundlePlan) -> dict[str, Any]:
         "interfaces": interfaces,
         "interfaces_count": interfaces_count,
         "generated_by": "repo-to-skill",
+        "language": plan.language,
     }
 
 
@@ -733,6 +737,7 @@ def _composite_context(plan: CallableCompositePlan) -> dict[str, Any]:
         context["order"] = plan_step.order
         context["selection_score"] = plan_step.score
         context["selection_reasons"] = [_inline_text(reason) for reason in plan_step.reasons]
+        context["language"] = plan.language
         steps.append(context)
 
     goal = _inline_text(plan.goal, "requested business goal")
@@ -746,6 +751,7 @@ def _composite_context(plan: CallableCompositePlan) -> dict[str, Any]:
         "skill_description": _composite_skill_description(project_name, goal, steps_count),
         "selection_source": _inline_text(plan.selection.selection_source, "deterministic"),
         "generated_by": "repo-to-skill",
+        "language": plan.language,
     }
 
 

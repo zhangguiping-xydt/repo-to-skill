@@ -4,6 +4,49 @@ description: {{ skill_description | tojson }}
 kind: callable-bundle
 ---
 
+{%- if language == 'zh-CN' %}
+# {{ project_name }} · callable API bundle
+
+本 skill 把一个用户目标转化为来自 {{ project_name }} 系统的一组聚焦的 callable API 工具。
+
+目标：{{ need_summary }}
+
+## 包含的工具
+
+{% for interface in interfaces %}
+- `{{ interface.tool_name }}`（`{{ interface.slug }}`）—— `{{ interface.http_method }} {{ interface.route }}`，处理符号 `{{ interface.handler_symbol }}`。
+{% endfor %}
+
+## 何时使用
+
+- 你需要既有系统针对上述目标的实时答案或动作。
+- 既有系统是唯一事实源，自己复现逻辑有可能偏离生产行为。
+
+## 何时不要使用
+
+- 你没有 endpoint 访问权限或真实系统的凭据。
+- 你只需要静态代码理解；使用只读 repo-map skill。
+
+## 如何调用
+
+每个 API 都有自己的工具契约和 caller 脚本：
+
+{% for interface in interfaces %}
+```bash
+{{ interface.sample_command }}
+```
+{% endfor %}
+
+每个 caller 默认预览。只有传入 `--execute` 且配置了 endpoint 环境变量时才会真正发送请求。认证 token 从环境变量读取，预览时做脱敏。
+
+## 选择溯源
+
+`references/capability-selection.md` 说明这些 API 为何被选中；`references/capability-source.md` 提供源码级的 route、handler、业务方法和契约证据。
+
+## 安全
+
+这是一个 callable bundle：在显式执行时可以访问真实 HTTP 系统。它不安装依赖，不修改源码仓库，默认 dry-run 预览。
+{%- else %}
 # {{ project_name }} · callable API bundle
 
 This skill turns a user goal into a focused set of callable API tools from the
@@ -53,3 +96,4 @@ method, and contract evidence.
 This is a callable bundle: it can reach live HTTP systems when explicitly
 executed. It does not install dependencies, does not modify the source
 repository, and defaults to dry-run previews.
+{%- endif %}

@@ -1,3 +1,80 @@
+{%- if language == 'zh-CN' -%}
+# {{ project_name }} 仓库 skill
+
+使用本 skill 可以基于预先计算好的 repo-to-skill 分析产物，理解名为 `{{ project_name }}` 的本地仓库。
+
+## 概览
+
+- 用途：{{ description }}
+- 主要语言：{{ profile.primary_language | default("unknown") }}
+{% if project_map.languages %}- 语言：{{ project_map.languages | join("、") }}
+{% endif %}{% if project_map.ecosystems %}- 生态：{{ project_map.ecosystems | join("、") }}
+{% endif %}{% if project_map.entrypoints %}- 入口：{{ project_map.entrypoints | join("；") }}
+{% endif %}{% if project_map.test_commands %}- 测试命令：{{ project_map.test_commands | join("；") }}
+{% endif %}{% if key_paths %}- 关键路径：{{ key_paths | join("、") }}
+{% endif %}- 校验状态：{{ verification_report.status | default("unknown") }}
+
+## 仓库结构
+
+{% if project_map.modules %}分析结果中的重要顶层模块：
+
+{% for module in project_map.modules %}- {{ module.name }} —— {{ module.summary if module.summary else module.total ~ " 个采样文件（源码 " ~ module.source ~ "、配置 " ~ module.configuration ~ "、文档 " ~ module.documentation ~ "、测试 " ~ module.test ~ "）" }}
+{% if module.signals %}  - 信号：{{ module.signals | join("、") }}
+{% endif %}{% if module.representative_paths %}  - 代表性路径：{{ module.representative_paths | join("；") }}
+{% endif %}{% endfor %}{% else %}- 未检测到多文件顶层模块。
+{% endif %}
+生成的 reference 只汇总代表性文件，不列出每个被扫描的路径。扫描器识别出的生成缓存、构建产物、依赖目录和本地分析产物会被排除。
+
+## 仓库推理
+
+{% if project_map.module_relationships %}可能的模块关系：
+
+{% for relationship in project_map.module_relationships[:8] %}- {{ relationship.source }} -> {{ relationship.target }} —— {{ relationship.relation }}
+{% endfor %}{% else %}- 分析产物中没有确定性推断出的模块关系。
+{% endif %}
+{% if project_map.task_entry_guide %}
+
+任务入口指引：
+
+{% for guide in project_map.task_entry_guide %}- {{ guide.task }}：从 {{ guide.start_with | join("、") }} 起步{{ "；随后检查 " ~ (guide.then_check | join("、")) if guide.then_check else "" }}
+{% endfor %}{% endif %}
+{% if project_map.validation_guide %}
+
+校验指引：
+
+{% for guide in project_map.validation_guide %}- {{ guide.scope }}{{ "：" ~ (guide.commands | join("；")) if guide.commands else ("：review " ~ (guide.paths | join("；")) if guide.paths else "") }}
+{% endfor %}{% endif %}
+
+## 如何配合 AI 编程代理使用本 skill
+
+1. 先在这里了解仓库用途、主要语言、重要模块和能力列表。
+2. 需要模块/文件图和代表性路径时，读 `references/project-map.md`。
+3. 需要推断的仓库能力时，读 `references/capability-graph.md` 和 `references/skill-spec.md`。
+4. 需要证据强度和评审备注时，读 `references/confidence-report.md`。
+5. 可选：对本地 checkout 运行 helper：
+
+```bash
+python scripts/inspect_repo.py /path/to/local/repository
+```
+
+helper 只打印一份精简概览，读取目录项和小段文本元数据，不会写文件。
+
+## 安全边界
+
+- 只读：不修改目标仓库。
+- 无网络访问：不上传源码，不调用远程服务。
+- 不安装依赖：不运行包管理器安装命令。
+- 生成的 helper 不派生 shell 命令。
+- 不做运行时服务注册或长驻服务集成。
+
+## 已知能力
+
+{% if capability_items %}{% for capability in capability_items %}
+- `{{ capability.id }}` —— {{ capability.label }}
+{% endfor %}{% else %}
+- 分析产物中没有具体能力声明。
+{% endif %}
+{%- else -%}
 # {{ project_name }} repository skill
 
 Use this skill to understand the local repository named `{{ project_name }}` from precomputed repo-to-skill analysis artifacts.
@@ -73,3 +150,4 @@ The helper prints a compact overview only. It reads directory entries and small 
 {% endfor %}{% else %}
 - No specific capability claims were present in the analysis artifacts.
 {% endif %}
+{%- endif -%}

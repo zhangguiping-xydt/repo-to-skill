@@ -1,3 +1,36 @@
+{%- if language == 'zh-CN' -%}
+# Skill 规格：{{ project_name }}
+
+描述：{{ skill_spec.description | default(description) }}
+
+本地优先：{{ skill_spec.local_first | default(true) }}
+
+## 能力
+
+{% if capability_items %}{% for capability in capability_items %}
+- `{{ capability.id }}` —— {{ capability.label }}
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 分析给出的安全边界
+
+{% if skill_spec.safety_boundaries %}{% for boundary in skill_spec.safety_boundaries %}
+- {{ boundary }}
+{% endfor %}{% else %}
+- 仅本地只读理解仓库。
+- 不上传源码。
+- 不依赖远程服务。
+{% endif %}
+
+## 分析记录的命令
+
+{% if skill_spec.commands %}{% for command in skill_spec.commands %}
+- {{ command }}
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+{%- else -%}
 # Skill spec: {{ project_name }}
 
 Description: {{ skill_spec.description | default(description) }}
@@ -29,3 +62,4 @@ Local-first: {{ skill_spec.local_first | default(true) }}
 {% endfor %}{% else %}
 - none detected
 {% endif %}
+{%- endif -%}

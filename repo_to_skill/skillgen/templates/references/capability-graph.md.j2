@@ -1,3 +1,24 @@
+{%- if language == 'zh-CN' -%}
+# 能力图：{{ project_name }}
+
+本 reference 由本地分析产出的 `capability_graph.json` 渲染而来。
+
+## 节点
+
+{% if capability_graph.nodes %}{% for node in capability_graph.nodes %}
+- `{{ node.id }}`：{{ node.label }}（{{ node.kind }}，置信度 {{ node.confidence }}）
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+
+## 边
+
+{% if capability_graph.edges %}{% for edge in capability_graph.edges %}
+- `{{ edge.source }}` -> `{{ edge.target }}`（{{ edge.relation }}）
+{% endfor %}{% else %}
+- 未检测到
+{% endif %}
+{%- else -%}
 # Capability graph: {{ project_name }}
 
 This reference is rendered from `capability_graph.json` produced by local analysis.
@@ -17,3 +38,4 @@ This reference is rendered from `capability_graph.json` produced by local analys
 {% endfor %}{% else %}
 - none detected
 {% endif %}
+{%- endif -%}

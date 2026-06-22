@@ -4,6 +4,48 @@ description: {{ skill_description | tojson }}
 kind: callable-capability
 ---
 
+{%- if language == 'zh-CN' %}
+# {{ project_name }} · {{ handler_symbol }}
+
+本 skill 暴露 {{ project_name }} 系统中已存在的一项能力。该能力位于某个 HTTP 接口背后；本 pack 把它变成 AI 编程代理可以直接调用的形态，而不是重新实现一遍。
+
+- 技术栈：{{ stack }}（{{ framework }}）
+- 接口：`{{ http_method }} {{ route }}`
+- 处理符号：`{{ handler_symbol }}`
+
+## 何时使用
+
+- 你需要这个接口计算或返回的结果，且真实系统是答案的唯一来源。
+- 自己复现这段逻辑有可能偏离真实系统行为。
+
+## 何时不要使用
+
+- endpoint 不可达，或你没有凭据。本 skill 调用真实服务，不能离线作答。
+- 你只需要静态代码知识——使用只读 repo-map pack。
+
+## 如何调用
+
+该能力运行在真实系统中，所以本 pack 附带真实 caller：
+
+```bash
+{{ sample_command }}
+```
+
+- endpoint 和认证 token 从环境变量读取（`{{ endpoint_env }}`、`{{ token_env }}`），绝不硬编码。
+- caller 默认预览。只有当你传入 `--execute` 且设置了 `{{ endpoint_env }}` 时，它才会真正发送请求。在 `--dry-run` 或未配置 endpoint 时，它只打印将要发送的请求，不会触碰目标系统。
+
+## 输入 / 输出契约
+
+完整机器可读契约（输入 schema、输出 schema、如何调用）见 `tools/{{ module }}.tool.yaml`。agent 运行时加载该文件以获知本工具的存在和用法。
+
+## 能力来源
+
+见 `references/capability-source.md`。每个字段都能回溯到被分析仓库中检测到的源码，维护者可以据此核对封装是否忠实。
+
+## 安全
+
+本 skill 是 **callable** skill，不是只读知识 pack。它会通过网络访问真实外部系统并需要凭据。仅在获得授权的系统上运行；未经授权不要对生产环境调用。caller 默认 dry-run 预览，并对 token 做脱敏处理。
+{%- else %}
 # {{ project_name }} · {{ handler_symbol }}
 
 This skill exposes ONE capability that already exists inside the {{ project_name }}
@@ -58,3 +100,4 @@ This is a **callable** skill, not a read-only knowledge pack. It reaches a live
 external system over the network and requires credentials. Run it only against a
 system you are authorized to call, and not against production without
 authorization. The caller defaults to a dry-run preview and redacts the token.
+{%- endif %}

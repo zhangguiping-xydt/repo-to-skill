@@ -4,6 +4,55 @@ description: {{ skill_description | tojson }}
 kind: callable-composite
 ---
 
+{%- if language == 'zh-CN' %}
+# {{ project_name }} · callable composite（{{ steps_count }} 步）
+
+本 skill 按固定顺序调用 {{ project_name }} 系统的 {{ steps_count }} 个真实 HTTP API，用于回答一个业务目标：
+
+> {{ goal }}
+
+## 顺序步骤
+
+{% for step in steps %}
+{{ step.order + 1 }}. `{{ step.slug }}` —— `{{ step.http_method }} {{ step.route }}`
+   处理符号 `{{ step.handler_symbol }}`
+{% endfor %}
+
+## 何时使用
+
+- 你需要上述目标的最终业务答案（例如：员工基于加班时长可申请的调休天数）。
+- 每一步都必须对真实系统执行——源码仓库是唯一事实源。
+
+## 何时不要使用
+
+- 你只需要静态代码理解；使用只读 repo-map skill。
+- 你没有链路中每一步的 endpoint 和 token 凭据。
+
+## ⚠️ 必须完成字段映射，才能交给最终用户使用
+
+`repo-to-skill` 是基于 `callable_capabilities.json` 确定性渲染本 skill 的。它**不会**分析源码的数据流。orchestrator 当前含若干 `# TODO: fill from step_<n>.<field>` 标记，在非 agent 最终用户使用本 skill 之前，必须把它们替换成真实的字段透传代码。
+
+作为生成本 skill 的编程代理，你必须：
+
+1. 打开 `references/composition.md`。对每个 step N > 0，它列出了上一步的响应字段和本步的请求字段。
+2. 根据 `references/capability-source.md` 中描述的业务语义（业务方法、字段名，必要时回到原始源码），决定 step N-1 的哪些响应字段必须作为输入传给 step N。
+3. 编辑 `orchestrator.py`。把每个 `# TODO: fill from step_<n>.<field>` 占位替换成具体代码，从上一步的解析 JSON 中读取值，并通过相应 CLI 参数传给下一个 caller。
+4. 运行 `python orchestrator.py --help` 和 dry-run 预览，确认整条链路仍能解析、不需要真实网络访问即可端到端跑通。
+
+在 TODO 解决之前，orchestrator 只会以 dry-run 预览模式运行，不会产生真实业务答案。
+
+## 链路如何运行
+
+```bash
+python orchestrator.py --employee-info E001
+```
+
+每个底层 caller 默认预览，只有传入 `--execute` 且配置了对应的 `*_ENDPOINT` 环境变量时才会真正发送请求。Token 从 `*_TOKEN` 环境变量读取，预览时做脱敏。完整 endpoint/token 列表见 `manifest.yaml`。
+
+## 安全
+
+这是一个 callable composite：在显式执行时可以访问真实 HTTP 系统。它不安装依赖，不修改源码仓库，默认 dry-run 预览。
+{%- else %}
 # {{ project_name }} · callable composite ({{ steps_count }} steps)
 
 This skill chains {{ steps_count }} live HTTP APIs of the {{ project_name }}
@@ -72,3 +121,4 @@ previews. See `manifest.yaml` for the full endpoint/token env list.
 This is a callable composite: it can reach live HTTP systems when explicitly
 executed. It does not install dependencies, does not modify the source
 repository, and defaults to dry-run previews.
+{%- endif %}

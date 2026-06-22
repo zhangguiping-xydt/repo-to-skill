@@ -1,3 +1,51 @@
+{%- if language == 'zh-CN' -%}
+# 能力来源
+
+本 bundle 封装了在被分析仓库中检测到的既有 HTTP 接口。字段名按检测结果原样保留，使 JSON 契约与真实系统一致。
+
+{% for interface in interfaces %}
+## {{ interface.slug }} —— `{{ interface.http_method }} {{ interface.route }}`
+
+- 技术栈：{{ interface.stack }}
+- 框架：{{ interface.framework }}
+- 处理符号：`{{ interface.handler_symbol }}`
+{% if interface.handler_path %}
+- 源文件：`{{ interface.handler_path }}`
+{% endif %}
+{% if interface.business_method %}
+- 业务方法：`{{ interface.business_method }}`
+{% endif %}
+- 工具：`tools/{{ interface.module }}.tool.yaml`
+- Caller：`scripts/call_{{ interface.module }}.py`
+- Endpoint 环境变量：`{{ interface.endpoint_env }}`
+- Token 环境变量：`{{ interface.token_env }}`
+
+### 输入模型 —— `{{ interface.request_model }}`
+
+{% if interface.request_fields %}
+| 字段 | JSON 类型 | 是否必填 |
+|-------|-----------|----------|
+{% for field in interface.request_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} | {{ "是" if field.required else "否" }} |
+{% endfor %}
+{% else %}
+无法从源码解析请求负载。在契约确认之前，使用 `--json-body` 传入原始 JSON body。
+{% endif %}
+
+### 输出模型 —— `{{ interface.response_model }}`
+
+{% if interface.response_fields %}
+| 字段 | JSON 类型 |
+|-------|-----------|
+{% for field in interface.response_fields %}
+| `{{ field.wire }}` | {{ field.schema_type }} |
+{% endfor %}
+{% else %}
+无法从源码解析响应负载。
+{% endif %}
+
+{% endfor %}
+{%- else -%}
 # Capability source
 
 This bundle wraps existing HTTP interfaces detected in the analyzed repository.
@@ -47,3 +95,4 @@ The response payload could not be resolved from source.
 {% endif %}
 
 {% endfor %}
+{%- endif -%}

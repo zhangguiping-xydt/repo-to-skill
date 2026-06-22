@@ -1,5 +1,13 @@
+{%- if language == 'zh-CN' -%}
+# 置信度报告：{{ project_name }}
+
+以下内容来自本地分析产物 `confidence-report.md`，已尽可能去除机器特定的绝对路径。
+
+{{ confidence_report }}
+{%- else -%}
 # Confidence report: {{ project_name }}
 
 The following content comes from the local analyze artifact `confidence-report.md` with machine-specific absolute paths removed when present.
 
 {{ confidence_report }}
+{%- endif -%}
