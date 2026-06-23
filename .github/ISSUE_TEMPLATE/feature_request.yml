@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a new capability, adapter, generated skill shape, or agent product.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: What user or agent workflow should this improve?
+      placeholder: "I want an agent to ..."
+    validations:
+      required: true
+  - type: textarea
+    id: current_gap
+    attributes:
+      label: Current gap
+      description: What is hard, missing, or unsafe today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_shape
+    attributes:
+      label: Proposed shape
+      description: If you have a preferred CLI flag, output format, adapter, or skill layout, describe it here.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - repo-to-skill CLI
+        - generated skill output
+        - callable API detection
+        - adapters / compatibility
+        - docs / examples
+        - other agent product
+    validations:
+      required: true

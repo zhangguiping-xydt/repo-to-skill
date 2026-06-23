@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a reproducible problem in starry-agent or repo-to-skill.
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the user-visible problem and what you expected instead.
+      placeholder: "When I run ..., I expected ..., but ..."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest command sequence or repository shape that reproduces the issue.
+      placeholder: |
+        1. Run `repo-to-skill analyze ...`
+        2. Run `repo-to-skill generate ...`
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant output
+      description: Paste terminal output, generated file excerpts, or validation messages. Remove credentials and private URLs.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Provide the release version, tag, or commit SHA you used.
+      placeholder: "v0.1.1 or 5848bf3"
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, installation method, and target repository stack if relevant.
+      placeholder: "Linux, Python 3.11, pip install -e ., target repo: ASP.NET/Java/Python"
